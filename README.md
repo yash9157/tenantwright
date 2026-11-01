@@ -85,6 +85,166 @@ Project paths are relative to `backend/`. Infrastructure containers use ports th
 - [Troubleshooting](docs/troubleshooting.md)
 - [Task records](docs/task/README.md): the planning convention that agent governance uses.
 
+## Roadmap
+
+This section shows where TenantWright is heading. Items are direction, not commitments, and the order can change. To propose an item or discuss one, open a [GitHub issue](https://github.com/yash9157/tenantwright/issues) or [discussion](https://github.com/yash9157/tenantwright/discussions).
+
+Status legend:
+
+- **Available:** in the code today.
+- **Planned:** agreed direction, not started.
+- **Exploring:** the design is still open.
+- **Help wanted:** a good item to pick up.
+
+### Available today
+
+The [Highlights](#highlights) list above describes what ships today: Auth (OpenIddict), the YARP gateway, Identity, Tenant, Permissions, AuditLogs, Notifications and Workflows (Temporal). Messaging runs on Wolverine, MassTransit or None, with a signed outbox and inbox ([Messaging](docs/messaging.md)). Tenants use a shared database or a dedicated one ([Multi-tenancy](docs/multi-tenancy.md)). The stack runs locally with the Aspire AppHost ([Getting started](docs/getting-started.md)) and deploys with Helm ([Deployment](docs/deployment.md)).
+
+### Design rules for new modules
+
+- Use the same six-project service shape as the other services ([Adding a service](docs/adding-a-service.md)).
+- Keep every action tenant-isolated and fail-closed.
+- Publish events as `*Eto` contracts in `Shared.EventContracts`, sent through the outbox.
+- Define permissions in the service's `*Permissions` class in its `Domain.Shared` project.
+- Put external providers behind a neutral interface, the way messaging does ([Adding another provider](docs/messaging.md#adding-another-provider)).
+- Make each provider optional and off by default.
+- Never put secrets in `appsettings.json`.
+
+### New modules
+
+| Module | What it does | Status |
+|---|---|---|
+| Billing & Subscriptions | Plans, trials, seats, usage metering, invoices, proration, dunning, tax hooks | Planned |
+| Payments | Provider-neutral payment intents, refunds, payment methods, webhook signature checks, idempotency, reconciliation | Planned |
+| Files & Storage | A file service on `Shared.BlobStoring`, with a virus-scan hook and per-tenant quotas. Amazon S3, Azure Blob and file-system providers are available in `Shared.BlobStoring`; MinIO and Google Cloud Storage are planned | Planned |
+| Outbound webhooks | Tenant webhook subscriptions, signed deliveries, retries, a delivery log | Planned, Help wanted |
+| API keys & developer portal | Per-tenant API keys with scopes, rotation and a portal to manage them | Planned |
+| Tenant settings & branding | Custom domains, themes, white-label emails | Planned |
+| Localization | Translated messages, emails and templates per tenant and user | Planned, Help wanted |
+| Search | Tenant-scoped search behind an adapter for OpenSearch or Meilisearch | Exploring |
+| Reporting & exports | Scheduled reports and data exports per tenant | Exploring |
+| Data privacy | Tenant data export, right to erasure, retention policies across services | Planned |
+| Feature flags & plan entitlements | Link the existing Permissions feature catalog to billing plans | Planned |
+| Integrations hub | Slack, Microsoft Teams and Zapier-style connectors | Exploring, Help wanted |
+| Scheduler and jobs UI | View and manage background jobs across services | Exploring |
+| AI module (optional) | An LLM gateway with per-tenant keys, usage limits and prompt audit | Exploring |
+
+### Payment gateways
+
+Every gateway plugs into one `IPaymentProvider`-style abstraction in the Payments module. None is available yet.
+
+| Provider | Regions | Notes | Status |
+|---|---|---|---|
+| Stripe | Global | Hosted Checkout and Elements, subscriptions | Planned |
+| Razorpay | India | Cards, UPI, netbanking, subscriptions | Planned |
+| PayPal / Braintree | Global | Wallet checkout and cards | Planned |
+| Adyen | Global | Enterprise card acquiring | Exploring |
+| Cashfree | India | Payments and payouts | Exploring, Help wanted |
+| PhonePe / UPI | India | UPI intent and collect flows | Exploring, Help wanted |
+| Paytm | India | Wallet and UPI | Exploring, Help wanted |
+| Mollie | Europe | Local European payment methods | Exploring, Help wanted |
+| Square | US, CA, UK, AU, JP | Online and in-person payments | Exploring |
+| Paddle | Global | Merchant of record, handles sales tax | Exploring |
+| Lemon Squeezy | Global | Merchant of record for software sales | Exploring |
+| Checkout.com | Global | Enterprise card acquiring | Exploring |
+
+Every provider must meet these rules:
+
+- Verify the signature of every incoming webhook.
+- Use idempotency keys for every write to the provider.
+- Publish outcomes as outbox events, such as `PaymentSucceededEto`.
+- Keep PCI scope at the provider: hosted checkout or elements only, and no card data stored.
+- Support a sandbox mode for the local AppHost.
+
+### Notification providers
+
+| Channel | Provider | Status |
+|---|---|---|
+| Email | SMTP (MailKit) | Available |
+| SMS | Twilio | Available |
+| WhatsApp | Meta WhatsApp Cloud API | Available |
+| Push | Firebase Cloud Messaging, Apple Push Notification service, Web Push | Available |
+| Email | SendGrid, Amazon SES, Mailgun, Postmark | Planned, Help wanted |
+| SMS | MSG91, Vonage | Planned, Help wanted |
+
+### Messaging and platform
+
+| Item | Status |
+|---|---|
+| Signed dead-letter replay for Wolverine (MassTransit already has protected replay) | Planned |
+| More transports behind `Messaging:Provider`: Azure Service Bus, Amazon SQS/SNS, Kafka | Exploring, Help wanted |
+| Audit log archive for dedicated AuditLogs databases (archive runs on the shared database today; legal hold is available) | Planned |
+| Schema-per-tenant option, next to shared and dedicated databases | Exploring |
+| Move a tenant between shared and dedicated databases, with data migration tooling | Planned |
+| Multi-region deployment | Exploring |
+| Per-plan rate limits (the gateway has global rate limiting today) | Planned |
+
+### Security and identity
+
+Passkeys, MFA, trusted devices and sessions are available in Identity.
+
+| Item | Status |
+|---|---|
+| Per-tenant SSO with SAML 2.0 and enterprise OIDC | Planned |
+| SCIM user and group provisioning | Planned |
+| Social login (Google, Microsoft, GitHub and others) | Planned, Help wanted |
+| OAuth 2.0 Token Exchange (RFC 8693) for service-to-service user delegation. This is a security-sensitive change and needs a separate design review | Exploring |
+
+### NuGet packages and templates
+
+The plan is to publish the infrastructure libraries on nuget.org, so other apps can use them without the whole template.
+
+| Package | From project | Status |
+|---|---|---|
+| `TenantWright.MultiTenancy` | `Shared.MultiTenancy` | Planned |
+| `TenantWright.EventBus` | `Shared.EventBus` | Planned |
+| `TenantWright.EventBus.Wolverine` | `Shared.EventBus.Wolverine` | Planned |
+| `TenantWright.EventBus.MassTransit` | `Shared.EventBus.MassTransit` | Planned |
+| `TenantWright.EventBus.Hosting` | `Shared.EventBus.Hosting` | Planned |
+| `TenantWright.EntityFrameworkCore` | `Shared.EntityFrameworkCore` (outbox, inbox, tenant databases) | Planned |
+| `TenantWright.Permissions` | `Shared.Permissions`, `Shared.Permissions.Abstractions` | Planned |
+| `TenantWright.Uow` | `Shared.Uow` | Planned |
+| `TenantWright.Caching` | `Shared.Caching` | Planned |
+| `TenantWright.DistributedLocking` | `Shared.DistributedLocking` | Planned |
+| `TenantWright.AuditLogs` | `Shared.AuditLogs` | Planned |
+| `TenantWright.BackgroundTasks` | `Shared.BackgroundTasks`, `Shared.BackgroundTasks.Hangfire` | Planned |
+| `TenantWright.BlobStoring` | `Shared.BlobStoring` | Planned |
+| `TenantWright.Templates` | `dotnet new` templates (below) | Planned |
+
+The template package adds two commands:
+
+- `dotnet new tenantwright` creates the whole solution, with options such as `--messaging wolverine|masstransit|none` and `--no-temporal`.
+- `dotnet new tenantwright-service` adds one six-project service, wired into the AppHost, the gateway and the Helm charts.
+
+Release rules for the packages: Semantic Versioning, a CHANGELOG, Source Link, deterministic builds, symbol packages, and signed packages published from CI with trusted publishing.
+
+Open design decision: the projects and namespaces stay `Shared.*` until the package rename is designed. Whether namespaces become `TenantWright.*`, and how package boundaries map to projects, is not decided yet.
+
+### Frontend and SDKs
+
+| Item | Status |
+|---|---|
+| React admin app (super-admin and tenant-admin) | Planned |
+| Angular admin app (super-admin and tenant-admin) | Planned |
+| TypeScript and C# API clients generated from OpenAPI | Planned, Help wanted |
+
+### Developer experience and project health
+
+| Item | Status |
+|---|---|
+| GitHub Actions CI: build, tests, Helm lint | Planned, Help wanted |
+| Dev Container and GitHub Codespaces setup | Planned, Help wanted |
+| Sample business service (Orders) as a reference | Planned |
+| Documentation site | Exploring |
+| `CONTRIBUTING.md`, issue and pull request templates | Planned, Help wanted |
+| `CHANGELOG.md` | Planned |
+
+### How to help
+
+1. Pick an item marked **Help wanted**.
+2. Open an issue before large work, so the design can be agreed first.
+3. Follow [AGENTS.md](AGENTS.md) and [Adding a service](docs/adding-a-service.md).
+
 ## Security
 
 Report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
