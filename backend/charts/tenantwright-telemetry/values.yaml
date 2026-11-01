@@ -1,0 +1,40 @@
+namespace: tenantwright-telemetry
+opensearch:
+  host: opensearch.example.com
+  port: 9200
+  existingSecret: tenantwright-opensearch-credentials
+  usernameKey: username
+  passwordKey: password
+collector:
+  image: otel/opentelemetry-collector-contrib:0.141.0
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+dataPrepper:
+  enabled: true
+  image: opensearchproject/data-prepper:2.13.0
+  replicas: 1
+  resources:
+    requests: { cpu: 200m, memory: 768Mi }
+    limits: { cpu: 2, memory: 2Gi }
+fluentBit:
+  image: fluent/fluent-bit:4.2.0
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+prometheus:
+  enabled: true
+  image: prom/prometheus:v3.5.0
+  ingress:
+    enabled: true
+    className: nginx
+    host: api.dev.example.com
+    path: /prometheus
+    clusterIssuer: letsencrypt-prod
+    tlsSecretName: tenantwright-prometheus-tls
+    authSecretName: tenantwright-prometheus-basic-auth
+    ingressNamespace: kube-system
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 1, memory: 1Gi }

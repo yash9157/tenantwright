@@ -1,0 +1,623 @@
+{{- if .Values.tenantwrightObservability.dashboards.enabled }}
+{{- $dashboardLabel := default "grafana_dashboard" .Values.tenantwrightObservability.dashboards.label }}
+{{- $dashboardLabelValue := default "1" .Values.tenantwrightObservability.dashboards.labelValue }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenantwright-observability-dashboards
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    {{ $dashboardLabel }}: {{ $dashboardLabelValue | quote }}
+data:
+  tenantwright-service-overview.json: |
+    {
+      "uid": "tenantwright-service-overview",
+      "title": "TenantWright Service Overview",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "templating": {
+        "list": [
+          {
+            "name": "service",
+            "type": "query",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "query": "label_values(http_server_request_duration_seconds_count, service_name)",
+            "includeAll": true,
+            "multi": true,
+            "current": {
+              "selected": true,
+              "text": "All",
+              "value": [
+                "$__all"
+              ]
+            }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Availability % (5m)",
+          "gridPos": { "h": 7, "w": 6, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "100 * (1 - (sum(rate(http_server_request_duration_seconds_count{service_name=~\"$service\",http_response_status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{service_name=~\"$service\"}[5m])), 0.001)))",
+              "legendFormat": "availability"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Requests / sec",
+          "gridPos": { "h": 7, "w": 6, "x": 6, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=~\"$service\"}[5m]))",
+              "legendFormat": "rps"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "P95 Latency (seconds)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, service_name) (rate(http_server_request_duration_seconds_bucket{service_name=~\"$service\"}[5m])))",
+              "legendFormat": "p95"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "5xx Error Rate",
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name=~\"$service\",http_response_status_code=~\"5..\"}[5m]))",
+              "legendFormat": "5xx/s"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "decimals": 3
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Top 10 Pod CPU (cores)",
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "topk(10, sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"tenantwright\",container!=\"\",image!=\"\"}[5m])))",
+              "legendFormat": "pod"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cores",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        }
+      ]
+    }
+  tenantwright-slo-budget.json: |
+    {
+      "uid": "tenantwright-slo-budget",
+      "title": "TenantWright SLO and Error Budget",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
+      "templating": {
+        "list": [
+          {
+            "name": "service",
+            "type": "query",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "query": "label_values(tenantwright:slo:availability:ratio5m, service_name)",
+            "includeAll": true,
+            "multi": true,
+            "current": {
+              "selected": true,
+              "text": "All",
+              "value": [
+                "$__all"
+              ]
+            }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "stat",
+          "title": "SLO Availability % (30m avg)",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "100 * avg_over_time(tenantwright:slo:availability:ratio5m{service_name=~\"$service\"}[30m])",
+              "legendFormat": "availability"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 3
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Error Budget Burn Rate",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 0 },
+          "targets": [
+            {
+              "expr": "max((1 - tenantwright:slo:availability:ratio5m{service_name=~\"$service\"}) / 0.005)",
+              "legendFormat": "burn"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Error % (5m)",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 0 },
+          "targets": [
+            {
+              "expr": "100 * (1 - avg(tenantwright:slo:availability:ratio5m{service_name=~\"$service\"}))",
+              "legendFormat": "error"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 3
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Availability Ratio",
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 7 },
+          "targets": [
+            {
+              "expr": "tenantwright:slo:availability:ratio5m{service_name=~\"$service\"}",
+              "legendFormat": "service"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 4
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Burn Rate by Service",
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 7 },
+          "targets": [
+            {
+              "expr": "(1 - tenantwright:slo:availability:ratio5m{service_name=~\"$service\"}) / 0.005",
+              "legendFormat": "service"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        }
+      ]
+    }
+  tenantwright-observability-capacity.json: |
+    {
+      "uid": "tenantwright-observability-capacity",
+      "title": "TenantWright Observability Capacity and Cost",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Prometheus Active Series",
+          "gridPos": { "h": 7, "w": 6, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(prometheus_tsdb_head_series)",
+              "legendFormat": "series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Loki Ingest (lines/s)",
+          "gridPos": { "h": 7, "w": 6, "x": 6, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(loki_distributor_lines_received_total[5m]))",
+              "legendFormat": "lines/s"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Tempo Spans Ingest (spans/s)",
+          "gridPos": { "h": 7, "w": 6, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(tempo_distributor_spans_received_total[5m]))",
+              "legendFormat": "spans/s"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "OTel Collector CPU (cores)",
+          "gridPos": { "h": 7, "w": 6, "x": 18, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"tenantwright-observability\",container!=\"\",image!=\"\",pod=~\".*otel.*\"}[5m]))",
+              "legendFormat": "cpu"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cores",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Prometheus Series Growth",
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 7 },
+          "targets": [
+            {
+              "expr": "sum(prometheus_tsdb_head_series)",
+              "legendFormat": "series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "PVC Usage (observability namespace)",
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 7 },
+          "targets": [
+            {
+              "expr": "sum by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace=\"tenantwright-observability\"})",
+              "legendFormat": "pvc"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        }
+      ]
+    }
+  tenantwright-login-risk.json: |
+    {
+      "uid": "tenantwright-login-risk",
+      "title": "TenantWright Login Risk",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Challenge Rate % (5m)",
+          "gridPos": { "h": 7, "w": 6, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "100 * (sum(rate(identity_login_challenges_total[5m])) / clamp_min(sum(rate(identity_login_risk_decisions_total[5m])), 0.001))",
+              "legendFormat": "challenge_rate"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Blocked Rate % (5m)",
+          "gridPos": { "h": 7, "w": 6, "x": 6, "y": 0 },
+          "targets": [
+            {
+              "expr": "100 * (sum(rate(identity_login_blocked_total[5m])) / clamp_min(sum(rate(identity_login_risk_decisions_total[5m])), 0.001))",
+              "legendFormat": "blocked_rate"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "False Positive Rate % (24h)",
+          "gridPos": { "h": 7, "w": 6, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "100 * (increase(identity_login_false_positive_total[24h]) / clamp_min(increase(identity_login_blocked_total[24h]), 1))",
+              "legendFormat": "false_positive_rate"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "MTTR Proxy (min)",
+          "gridPos": { "h": 7, "w": 6, "x": 18, "y": 0 },
+          "targets": [
+            {
+              "expr": "60 * avg_over_time(ALERTS_FOR_STATE{alertname=\"TenantWrightLoginRiskBlockedSpike\",alertstate=\"firing\"}[6h])",
+              "legendFormat": "mttr_proxy_min"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "m",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Risk Decisions by Action",
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 7 },
+          "targets": [
+            {
+              "expr": "sum by (action) (rate(identity_login_risk_decisions_total[5m]))",
+              "legendFormat": "action"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "decimals": 3
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Risk Score P95",
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 7 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(identity_login_risk_score_bucket[5m])) by (le))",
+              "legendFormat": "p95_score"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        }
+      ]
+    }
+  tenantwright-valkey-platform.json: |
+    {
+      "uid": "tenantwright-valkey-platform",
+      "title": "TenantWright Valkey Platform",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Instances Up",
+          "gridPos": { "h": 7, "w": 6, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(redis_up{service=\"tenantwright-valkey-metrics\"})",
+              "legendFormat": "up"
+            }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Connected Replicas",
+          "gridPos": { "h": 7, "w": 6, "x": 6, "y": 0 },
+          "targets": [
+            {
+              "expr": "max(redis_connected_slaves{service=\"tenantwright-valkey-metrics\"})",
+              "legendFormat": "replicas"
+            }
+          ]
+        },
+        {
+          "type": "gauge",
+          "title": "Memory Used",
+          "gridPos": { "h": 7, "w": 6, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "100 * redis_memory_used_bytes{service=\"tenantwright-valkey-metrics\"} / redis_memory_max_bytes{service=\"tenantwright-valkey-metrics\"}",
+              "legendFormat": "{{ "{{" }} instance {{ "}}" }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 85 },
+                  { "color": "red", "value": 95 }
+                ]
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Persistence Healthy",
+          "gridPos": { "h": 7, "w": 6, "x": 18, "y": 0 },
+          "targets": [
+            {
+              "expr": "min(redis_rdb_last_bgsave_status{service=\"tenantwright-valkey-metrics\"} and redis_aof_last_bgrewrite_status{service=\"tenantwright-valkey-metrics\"})",
+              "legendFormat": "healthy"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Commands per Second",
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 7 },
+          "targets": [
+            {
+              "expr": "sum by (instance) (rate(redis_commands_processed_total{service=\"tenantwright-valkey-metrics\"}[5m]))",
+              "legendFormat": "{{ "{{" }} instance {{ "}}" }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Rejected Connections and Evictions",
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 7 },
+          "targets": [
+            {
+              "expr": "sum(rate(redis_rejected_connections_total{service=\"tenantwright-valkey-metrics\"}[5m]))",
+              "legendFormat": "rejected/s"
+            },
+            {
+              "expr": "sum(rate(redis_evicted_keys_total{service=\"tenantwright-valkey-metrics\"}[5m]))",
+              "legendFormat": "evicted/s"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 3
+            },
+            "overrides": []
+          }
+        }
+      ]
+    }
+{{- end }}

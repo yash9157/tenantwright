@@ -1,0 +1,22 @@
+@using Auth.Pages.Account.Partials
+@model AuthResendModel
+@{
+    var variant = Model.IsPrimary ? "btn-primary" : "btn-secondary";
+}
+@* Resend control with a persistent client-side cooldown.
+   While cooling down it renders a disabled button showing "Resend in 45s";
+   when idle it renders the real link. CSP-safe (no inline expressions). *@
+<div x-data="authCooldown" data-cooldown-key="@Model.Key" data-cooldown-seconds="@Model.Seconds" data-cooldown-label="@Model.IdleLabel">
+    <a class="btn @variant"
+       href="@Model.Href"
+       x-show="idle"
+       x-on:click="start()"
+       x-text="label">@Model.IdleLabel</a>
+    <button type="button"
+            class="btn @variant"
+            x-show="active"
+            x-cloak
+            disabled
+            aria-disabled="true"
+            x-text="label"></button>
+</div>

@@ -1,0 +1,11 @@
+@using Auth.Pages.Account.Partials
+@model string
+@{
+    var href = ViewData["href"] as string ?? Auth.Routing.AuthPageRoutes.SignIn;
+}
+<div class="mt-6 text-center">
+    <a class="inline-flex items-center gap-1.5 text-sm font-medium text-on-surface-soft transition-colors hover:text-primary" href="@href">
+        @AuthIcons.Get("arrow-left", "size-4", "2")
+        <span>@Model</span>
+    </a>
+</div>

@@ -1,0 +1,68 @@
+{{- if and .Values.tenantwrightObservability.alerts.enabled .Values.tenantwrightObservability.temporal.enabled }}
+{{- $temporal := .Values.tenantwrightObservability.temporal }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tenantwright-temporal
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  groups:
+    - name: tenantwright.temporal.availability
+      rules:
+        - alert: TenantWrightTemporalDeploymentUnavailable
+          expr: |
+            max by (deployment) (
+              kube_deployment_status_replicas_unavailable{
+                namespace={{ $temporal.kubernetesNamespace | quote }},
+                deployment=~{{ $temporal.deploymentPattern | quote }}
+              }
+            ) > 0
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Temporal server deployment has unavailable replicas"
+            description: "At least one production Temporal service has remained below its desired replica count for 10 minutes."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighttemporalplatform"
+        - alert: TenantWrightTemporalPersistenceErrors
+          expr: |
+            sum(rate(persistence_errors[5m])) > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Temporal persistence errors detected"
+            description: "Temporal is reporting persistence failures. Check both PostgreSQL stores, TLS verification, connection limits, and recent schema changes."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighttemporalplatform"
+        - alert: TenantWrightTemporalServiceErrorRatio
+          expr: |
+            (
+              sum(rate(service_errors[5m]))
+              /
+              clamp_min(sum(rate(service_requests[5m])), 0.001)
+            ) > 0.01
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Temporal service error ratio is elevated"
+            description: "Temporal service errors exceeded one percent for 10 minutes."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighttemporalplatform"
+        - alert: TenantWrightTemporalWorkflowFailures
+          expr: |
+            sum(increase(workflow_failed{namespace={{ $temporal.workflowNamespace | quote }}}[15m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: workflows
+          annotations:
+            summary: "Temporal workflows failed"
+            description: "One or more workflows reached failed state in the TenantWright production namespace."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighttemporalplatform"
+{{- end }}

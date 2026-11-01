@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <MassTransitVersion>9.2.0</MassTransitVersion>
+    <WolverineVersion>6.51.0</WolverineVersion>
+    <TemporalVersion>1.17.0</TemporalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The repository is not a CLS-only public API surface. Make that assembly
+      contract explicit once for every SDK project instead of duplicating an
+      AssemblyInfo.cs file across service, shared, test, and tooling projects.
+    -->
+    <AssemblyAttribute Include="System.CLSCompliantAttribute">
+      <_Parameter1>false</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,24 @@
+{{- $clusterName := .Values.cluster.name -}}
+{{- $vhost := .Values.vhost.name -}}
+{{- $configure := .Values.permissions.configurePattern -}}
+{{- $write := .Values.permissions.writePattern -}}
+{{- $readShared := .Values.permissions.readSharedPattern -}}
+{{- range .Values.principals }}
+---
+apiVersion: rabbitmq.com/v1beta1
+kind: Permission
+metadata:
+  name: {{ .name }}-permission
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-permission
+spec:
+  vhost: {{ $vhost | quote }}
+  user: {{ .name | quote }}
+  permissions:
+    configure: {{ $configure | quote }}
+    write: {{ $write | quote }}
+    read: {{ printf "^(%s(?:-|$).*|%s)$" .name $readShared | quote }}
+  rabbitmqClusterReference:
+    name: {{ $clusterName }}
+{{- end }}

@@ -1,0 +1,29 @@
+replicaCount: 1
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 2
+env:
+  ASPNETCORE_ENVIRONMENT: Development
+  OTEL_SDK_DISABLED: 'false'
+  PostgreSql__Runtime__RequireExplicitConfiguration: 'true'
+  PostgreSql__Runtime__Mode: Direct
+  PostgreSql__Runtime__BackendPoolSize: '0'
+  PostgreSql__Runtime__ClientPool__Pooling: 'true'
+  PostgreSql__Runtime__ClientPool__MaximumPoolSize: '4'
+  PostgreSql__Runtime__ClientPool__MinimumPoolSize: '0'
+  PostgreSql__Runtime__ClientPool__ConnectionIdleLifetimeSeconds: '60'
+  PostgreSql__Runtime__ClientPool__ConnectionPruningIntervalSeconds: '10'
+  PostgreSql__Runtime__ClientPool__ConnectionLifetimeSeconds: '300'
+  PostgreSql__Runtime__ClientPool__ConnectionTimeoutSeconds: '15'
+  PostgreSql__Runtime__ClientPool__CommandTimeoutSeconds: '30'
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1500m
+    memory: 2Gi
+networkPolicy:
+  ingressController:
+    namespace: kube-system

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tenantwrightapp.configMapName" . }}
+  labels:
+    {{- include "tenantwrightapp.labels" . | nindent 4 }}
+data:
+  AllowedHosts: {{ printf "%s;%s" .Values.ingress.host (include "tenantwrightapp.fullname" .) | quote }}
+  {{- range $key, $value := .Values.env }}
+  {{ $key }}: {{ $value | toString | quote }}
+  {{- end }}
+  {{- range $index, $value := .Values.config.forwardedHeaders.knownNetworks }}
+  ForwardedHeaders__KnownNetworks__{{ $index }}: {{ $value | toString | quote }}
+  {{- end }}
+  {{- range $index, $value := .Values.config.forwardedHeaders.knownProxies }}
+  ForwardedHeaders__KnownProxies__{{ $index }}: {{ $value | toString | quote }}
+  {{- end }}
+  {{- range $service, $target := .Values.sharedDatabaseTargets }}
+  TenantDatabases__SharedTargets__{{ $service }}__Host: {{ required (printf "sharedDatabaseTargets.%s.host is required" $service) $target.host | toString | quote }}
+  TenantDatabases__SharedTargets__{{ $service }}__Port: {{ $target.port | default 5432 | toString | quote }}
+  TenantDatabases__SharedTargets__{{ $service }}__Database: {{ required (printf "sharedDatabaseTargets.%s.database is required" $service) $target.database | toString | quote }}
+  {{- end }}

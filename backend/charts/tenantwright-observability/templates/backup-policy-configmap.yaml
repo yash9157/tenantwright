@@ -1,0 +1,16 @@
+{{- if and .Values.tenantwrightObservability.backupPolicy.enabled (not .Values.production.enabled) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenantwright-observability-backup-policy
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+data:
+  tool: {{ default "velero" .Values.tenantwrightObservability.backupPolicy.tool | quote }}
+  schedule: {{ default "0 */6 * * *" .Values.tenantwrightObservability.backupPolicy.schedule | quote }}
+  ttl: {{ default "168h" .Values.tenantwrightObservability.backupPolicy.ttl | quote }}
+  notes: |
+    Back up Grafana/Prometheus/Tempo/Loki PVCs and config resources.
+    Validate restore monthly in a non-production namespace.
+{{- end }}

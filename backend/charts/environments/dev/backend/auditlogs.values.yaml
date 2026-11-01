@@ -1,0 +1,11 @@
+image:
+  repository: yash9157/tenantwright-auditlogs
+  tag: mtls-20260801-1
+  digest: sha256:8896f4521b03ffa640fafaeba791cfc09cbb29493e32fe42d893cd4ccd4c4f1a
+  pullPolicy: IfNotPresent
+env:
+  EfCore__AutoMigrate: 'false'
+  BackgroundTasks__Hangfire__PrepareSchemaIfNecessary: 'false'
+networkPolicy: {}
+migrationJob:
+  enabled: true

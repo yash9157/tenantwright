@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.EventContracts\\Shared.EventContracts.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.Modularity\\Shared.Modularity.csproj" />
+  </ItemGroup>
+</Project>

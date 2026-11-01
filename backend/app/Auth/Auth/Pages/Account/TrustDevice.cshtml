@@ -1,0 +1,43 @@
+@page "/Account/Login/TrustDevice"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.TrustDeviceModel
+@{
+    ViewData["Title"] = "Trust this device";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+@if (!Model.HasChallengeContext)
+{
+    <section class="auth-card overflow-hidden rounded-card">
+        <div class="brand-hairline h-px w-full"></div>
+        <div class="relative p-6 sm:p-8 text-center">
+            <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "info", Tone = "warning", Heading = "Session expired", Description = "Your session ended before we could finish. Sign in again to continue." })" />
+            <div class="mt-6">
+                <a class="btn btn-primary" href="@AuthPageRoutes.SignIn">Back to sign in</a>
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    <section class="auth-card overflow-hidden rounded-card">
+        <div class="brand-hairline h-px w-full"></div>
+        <div class="relative p-6 sm:p-8 text-center">
+
+            <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "shield-check", Heading = "Trust this device?", Description = "Skip verification codes on this browser for the next 30 days. Only do this on a device you own." })" />
+
+            <form method="post" action="@AuthPageRoutes.TrustDevice" asp-antiforgery="true" data-auth-form="true" class="mt-6 space-y-3">
+                <partial name="Partials/_AuthAlert" model="@(new AuthAlertModel { Message = Model.ErrorMessage ?? string.Empty })" />
+                <partial name="Partials/_AuthValidationSummary" />
+
+                <button type="submit" name="Input.TrustDevice" value="true" data-auth-loading-text="Saving…" class="btn btn-primary">
+                    Trust this device
+                </button>
+                <button type="submit" name="Input.TrustDevice" value="false" data-auth-loading-text="Continuing…" class="btn btn-secondary">
+                    Not now
+                </button>
+            </form>
+        </div>
+    </section>
+}

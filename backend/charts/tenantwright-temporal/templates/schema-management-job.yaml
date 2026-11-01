@@ -1,0 +1,160 @@
+{{- if .Values.schemaManagement.enabled }}
+{{- $defaultSql := .Values.temporal.server.config.persistence.datastores.default.sql }}
+{{- $visibilitySql := .Values.temporal.server.config.persistence.datastores.visibility.sql }}
+{{- $defaultAddress := splitList ":" $defaultSql.connectAddr }}
+{{- $visibilityAddress := splitList ":" $visibilitySql.connectAddr }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tenantwright-temporal.fullname" . }}-schema-management
+  labels:
+    app.kubernetes.io/name: {{ include "tenantwright-temporal.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: schema-management
+    app.kubernetes.io/part-of: temporal
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "tenantwright-temporal.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: schema-management
+        app.kubernetes.io/part-of: temporal
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: persistence-schema
+          image: {{ include "tenantwright-temporal.image" .Values.temporal.admintools.image | quote }}
+          imagePullPolicy: {{ .Values.temporal.admintools.image.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              if ! temporal-sql-tool version >/dev/null 2>&1; then
+                temporal-sql-tool setup-schema -v 0.0
+              fi
+              temporal-sql-tool update-schema \
+                --schema-dir /etc/temporal/schema/postgresql/v12/temporal/versioned
+          env:
+            - name: SQL_PLUGIN
+              value: postgres12_pgx
+            - name: SQL_HOST
+              value: {{ first $defaultAddress | quote }}
+            - name: SQL_PORT
+              value: {{ last $defaultAddress | quote }}
+            - name: SQL_DATABASE
+              value: {{ $defaultSql.databaseName | quote }}
+            - name: SQL_USER
+              value: {{ .Values.schemaManagement.persistence.user | quote }}
+            - name: SQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.schemaManagement.persistence.existingSecret | quote }}
+                  key: {{ .Values.schemaManagement.persistence.secretKey | quote }}
+            - name: SQL_TLS
+              value: "true"
+            - name: SQL_TLS_CA_FILE
+              value: /etc/temporal/tls/postgresql/ca.crt
+            - name: SQL_TLS_SERVER_NAME
+              value: {{ $defaultSql.tls.serverName | quote }}
+            - name: SQL_TLS_DISABLE_HOST_VERIFICATION
+              value: "false"
+          securityContext: &schemaContainerSecurityContext
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          resources: &schemaResources
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts: &schemaVolumeMounts
+            - name: temporal-postgresql-ca
+              mountPath: /etc/temporal/tls/postgresql
+              readOnly: true
+            - name: temporal-schema-tmp
+              mountPath: /tmp
+        - name: visibility-schema
+          image: {{ include "tenantwright-temporal.image" .Values.temporal.admintools.image | quote }}
+          imagePullPolicy: {{ .Values.temporal.admintools.image.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              if ! temporal-sql-tool version >/dev/null 2>&1; then
+                temporal-sql-tool setup-schema -v 0.0
+              fi
+              temporal-sql-tool update-schema \
+                --schema-dir /etc/temporal/schema/postgresql/v12/visibility/versioned
+          env:
+            - name: SQL_PLUGIN
+              value: postgres12_pgx
+            - name: SQL_HOST
+              value: {{ first $visibilityAddress | quote }}
+            - name: SQL_PORT
+              value: {{ last $visibilityAddress | quote }}
+            - name: SQL_DATABASE
+              value: {{ $visibilitySql.databaseName | quote }}
+            - name: SQL_USER
+              value: {{ .Values.schemaManagement.visibility.user | quote }}
+            - name: SQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.schemaManagement.visibility.existingSecret | quote }}
+                  key: {{ .Values.schemaManagement.visibility.secretKey | quote }}
+            - name: SQL_TLS
+              value: "true"
+            - name: SQL_TLS_CA_FILE
+              value: /etc/temporal/tls/postgresql/ca.crt
+            - name: SQL_TLS_SERVER_NAME
+              value: {{ $visibilitySql.tls.serverName | quote }}
+            - name: SQL_TLS_DISABLE_HOST_VERIFICATION
+              value: "false"
+          securityContext: *schemaContainerSecurityContext
+          resources: *schemaResources
+          volumeMounts: *schemaVolumeMounts
+      containers:
+        - name: completed
+          image: {{ include "tenantwright-temporal.image" .Values.temporal.admintools.image | quote }}
+          imagePullPolicy: {{ .Values.temporal.admintools.image.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args: ['echo "Temporal persistence and visibility schemas are current."']
+          securityContext: *schemaContainerSecurityContext
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: temporal-schema-tmp
+              mountPath: /tmp
+      volumes:
+        - name: temporal-postgresql-ca
+          secret:
+            secretName: tenantwright-temporal-postgresql-ca
+        - name: temporal-schema-tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

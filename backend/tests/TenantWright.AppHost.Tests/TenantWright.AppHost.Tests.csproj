@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The real messaging core: generated material must satisfy the same validator, signer and key registry hosts use. -->
+    <ProjectReference Include="..\..\shared\Shared.EventBus\Shared.EventBus.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      The AppHost's Aspire-free local-material sources, compiled in directly: the AppHost is an Aspire executable
+      whose project references are resource metadata, not assemblies a test can load.
+    -->
+    <Compile Include="..\..\orchestration\TenantWright.AppHost\LocalSecretFile.cs" Link="AppHost\LocalSecretFile.cs" />
+    <Compile Include="..\..\orchestration\TenantWright.AppHost\LocalMessagingMaterial.cs" Link="AppHost\LocalMessagingMaterial.cs" />
+    <Compile Include="..\..\orchestration\TenantWright.AppHost\RabbitMqPasswordHash.cs" Link="AppHost\RabbitMqPasswordHash.cs" />
+    <Compile Include="..\..\orchestration\TenantWright.AppHost\LocalBrokerDefinitions.cs" Link="AppHost\LocalBrokerDefinitions.cs" />
+  </ItemGroup>
+</Project>

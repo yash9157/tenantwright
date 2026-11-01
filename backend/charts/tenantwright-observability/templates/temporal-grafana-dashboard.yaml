@@ -1,0 +1,61 @@
+{{- if and .Values.tenantwrightObservability.dashboards.enabled .Values.tenantwrightObservability.temporal.enabled }}
+{{- $dashboardLabel := default "grafana_dashboard" .Values.tenantwrightObservability.dashboards.label }}
+{{- $dashboardLabelValue := default "1" .Values.tenantwrightObservability.dashboards.labelValue }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenantwright-temporal-dashboard
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    {{ $dashboardLabel }}: {{ $dashboardLabelValue | quote }}
+data:
+  tenantwright-temporal.json: |
+    {
+      "uid": "tenantwright-temporal",
+      "title": "TenantWright Temporal Platform",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": { "from": "now-6h", "to": "now" },
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Unavailable replicas",
+          "gridPos": { "h": 7, "w": 6, "x": 0, "y": 0 },
+          "targets": [{
+            "expr": "sum(kube_deployment_status_replicas_unavailable{namespace=\"{{ .Values.tenantwrightObservability.temporal.kubernetesNamespace }}\",deployment=~\"{{ .Values.tenantwrightObservability.temporal.deploymentPattern }}\"})",
+            "legendFormat": "unavailable"
+          }]
+        },
+        {
+          "type": "timeseries",
+          "title": "Service requests and errors",
+          "gridPos": { "h": 8, "w": 18, "x": 6, "y": 0 },
+          "targets": [
+            { "expr": "sum(rate(service_requests[5m]))", "legendFormat": "requests/s" },
+            { "expr": "sum(rate(service_errors[5m]))", "legendFormat": "errors/s" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Persistence errors",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [{
+            "expr": "sum(rate(persistence_errors[5m]))",
+            "legendFormat": "errors/s"
+          }]
+        },
+        {
+          "type": "timeseries",
+          "title": "Workflow outcomes",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            { "expr": "sum(rate(workflow_success{namespace=\"{{ .Values.tenantwrightObservability.temporal.workflowNamespace }}\"}[5m]))", "legendFormat": "success/s" },
+            { "expr": "sum(rate(workflow_failed{namespace=\"{{ .Values.tenantwrightObservability.temporal.workflowNamespace }}\"}[5m]))", "legendFormat": "failed/s" },
+            { "expr": "sum(rate(workflow_timeout{namespace=\"{{ .Values.tenantwrightObservability.temporal.workflowNamespace }}\"}[5m]))", "legendFormat": "timeout/s" }
+          ]
+        }
+      ]
+    }
+{{- end }}

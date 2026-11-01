@@ -1,0 +1,17 @@
+{{- if .Values.tenantwrightObservability.hardening.enabled }}
+{{- range $pdb := .Values.tenantwrightObservability.hardening.podDisruptionBudgets }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $pdb.name | quote }}
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ $.Release.Name | quote }}
+spec:
+  minAvailable: {{ default 1 $pdb.minAvailable }}
+  selector:
+    matchLabels:
+{{ toYaml $pdb.selector | indent 6 }}
+---
+{{- end }}
+{{- end }}

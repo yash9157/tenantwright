@@ -1,0 +1,56 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.cluster.name }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.cluster.name }}
+      app.kubernetes.io/component: rabbitmq
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Values.cluster.name }}
+              app.kubernetes.io/component: rabbitmq
+      ports:
+        - protocol: TCP
+          port: 4369
+        - protocol: TCP
+          port: 25672
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.applicationNamespace }}
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  {{- range .Values.principals }}
+                  - {{ .name }}
+                  {{- end }}
+      ports:
+        - protocol: TCP
+          port: 5671
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.topologyOperatorNamespace }}
+      ports:
+        - protocol: TCP
+          port: 15671
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.observabilityNamespace }}
+      ports:
+        - protocol: TCP
+          port: 15692
+{{- end }}

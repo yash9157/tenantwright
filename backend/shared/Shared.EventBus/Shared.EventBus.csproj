@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <!--
+    The provider-neutral messaging core. It must never reference a transport package: MassTransit lives only in
+    Shared.EventBus.MassTransit, and the host composition in Shared.EventBus.Hosting selects one provider.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Shared.EventContracts\Shared.EventContracts.csproj" />
+    <ProjectReference Include="..\Shared.Modularity\Shared.Modularity.csproj" />
+    <ProjectReference Include="..\Shared.MultiTenancy\Shared.MultiTenancy.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenantwright-otel-collector
+  namespace: {{ .Values.namespace }}
+data:
+  collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317 }
+          http: { endpoint: 0.0.0.0:4318 }
+    processors:
+      memory_limiter: { check_interval: 1s, limit_mib: 512, spike_limit_mib: 128 }
+      k8sattributes: { auth_type: serviceAccount, passthrough: false }
+      transform/redact:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            statements:
+              - delete_key(attributes, "password")
+              - delete_key(attributes, "token")
+              - delete_key(attributes, "connectionString")
+              - delete_key(attributes, "authorization")
+              # Fluent Bit records carry the application's Serilog JSON in
+              # body. Promote its stable identity so Discover can filter by
+              # service even though the OTLP connection originates at the
+              # Fluent Bit DaemonSet.
+              - set(resource.attributes["service.name"], ParseJSON(body)["Properties"]["service.name"]) where IsString(body) and IsMatch(body, "^\\s*\\{") and ParseJSON(body)["Properties"]["service.name"] != nil
+              - set(resource.attributes["service.version"], ParseJSON(body)["Properties"]["service.version"]) where IsString(body) and IsMatch(body, "^\\s*\\{") and ParseJSON(body)["Properties"]["service.version"] != nil
+      batch: { send_batch_size: 512, timeout: 5s }
+    exporters:
+      opensearch:
+        http:
+          endpoint: https://{{ required "opensearch.host is required" .Values.opensearch.host }}:{{ .Values.opensearch.port }}
+          auth: { authenticator: basicauth/opensearch }
+        logs_index: tenantwright-logs
+        logs_index_time_format: yyyy.MM.dd
+        traces_index: tenantwright-traces
+        traces_index_time_format: yyyy.MM.dd
+        retry_on_failure: { enabled: true, initial_interval: 5s, max_interval: 30s, max_elapsed_time: 10m }
+        sending_queue: { enabled: true, num_consumers: 4, queue_size: 1000, storage: file_storage }
+{{- if .Values.dataPrepper.enabled }}
+      otlp/dataprepper:
+        endpoint: tenantwright-data-prepper:21890
+        tls:
+          insecure: true
+        retry_on_failure: { enabled: true, initial_interval: 5s, max_interval: 30s, max_elapsed_time: 10m }
+{{- end }}
+      prometheus:
+        endpoint: 0.0.0.0:8889
+    service:
+      pipelines:
+        logs: { receivers: [otlp], processors: [memory_limiter, k8sattributes, transform/redact, batch], exporters: [opensearch] }
+{{- if .Values.dataPrepper.enabled }}
+        traces: { receivers: [otlp], processors: [memory_limiter, k8sattributes, batch], exporters: [otlp/dataprepper] }
+{{- else }}
+        traces: { receivers: [otlp], processors: [memory_limiter, k8sattributes, batch], exporters: [opensearch] }
+{{- end }}
+        metrics: { receivers: [otlp], processors: [memory_limiter, k8sattributes, batch], exporters: [prometheus] }
+      extensions: [health_check, file_storage, basicauth/opensearch]
+    extensions:
+      health_check: { endpoint: 0.0.0.0:13133 }
+      file_storage: { directory: /var/lib/otelcol/file_storage }
+      basicauth/opensearch:
+        client_auth:
+          username: ${env:OPENSEARCH_USERNAME}
+          password: ${env:OPENSEARCH_PASSWORD}

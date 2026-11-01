@@ -1,0 +1,4 @@
+interface:
+  display_name: "TenantWright Testing Strategy"
+  short_description: "Backend testing strategy and verification"
+  default_prompt: "Use $tenantwright-testing-strategy to select, create, or review focused backend tests and verification."

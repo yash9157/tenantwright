@@ -1,0 +1,19 @@
+# Copy to backend/gateway.values.yaml in an operator-owned values directory.
+# Replace every angle-bracket token; live preflight rejects placeholders.
+replicaCount: 1
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+env:
+  AuthServer__Authority: https://<production-auth-host>/
+  Cors__Origins: https://<frontend-host>
+ingress:
+  host: <production-api-host>
+  hosts:
+  - <production-api-host>
+  tls:
+    enabled: true
+    secretName: tenantwright-gateway-tls
+networkPolicy:
+  ingressController:
+    namespace: <ingress-controller-namespace>

@@ -1,0 +1,51 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tenantwrightapp.fullname" . }}
+  labels:
+    {{- include "tenantwrightapp.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tenantwrightapp.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- with .Values.networkPolicy.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.networkPolicy.ingressController.enabled }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ required "networkPolicy.ingressController.namespace is required when ingress-controller access is enabled" .Values.networkPolicy.ingressController.namespace | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.targetPort }}
+    {{- end }}
+  egress:
+    {{- with .Values.networkPolicy.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.networkPolicy.smtpEgress.enabled }}
+    - ports:
+      {{- range .Values.networkPolicy.smtpEgress.ports }}
+        - protocol: TCP
+          port: {{ . }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.networkPolicy.postgresql.enabled }}
+    - {{- with .Values.networkPolicy.postgresql.cidrs }}
+      to:
+        {{- range . }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.postgresql.port }}
+    {{- end }}
+{{- end }}

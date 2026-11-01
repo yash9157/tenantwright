@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "production",
+    "grafanaAdminSecret",
+    "tenantwrightObservability",
+    "kube-prometheus-stack",
+    "tempo",
+    "tempo-distributed",
+    "loki",
+    "promtail",
+    "opentelemetry-collector",
+    "prometheus-blackbox-exporter"
+  ],
+  "properties": {
+    "production": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "environment",
+        "storageClassName",
+        "restoreDrillReference",
+        "objectStorage",
+        "network",
+        "remoteWrite",
+        "grafana",
+        "backup"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "environment": { "type": "string", "minLength": 1 },
+        "storageClassName": { "type": "string" },
+        "restoreDrillReference": { "type": "string" },
+        "objectStorage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "endpoint",
+            "region",
+            "lokiChunksBucket",
+            "lokiRulerBucket",
+            "lokiAdminBucket",
+            "tempoTracesBucket",
+            "workloadIdentityServiceAccountAnnotation",
+            "workloadIdentityServiceAccountValue"
+          ],
+          "properties": {
+            "provider": { "enum": ["filesystem", "s3"] },
+            "endpoint": { "type": "string" },
+            "region": { "type": "string" },
+            "lokiChunksBucket": { "type": "string" },
+            "lokiRulerBucket": { "type": "string" },
+            "lokiAdminBucket": { "type": "string" },
+            "tempoTracesBucket": { "type": "string" },
+            "workloadIdentityServiceAccountAnnotation": { "type": "string" },
+            "workloadIdentityServiceAccountValue": { "type": "string" }
+          }
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kubernetesApiCidrs",
+            "clusterNodeCidrs",
+            "objectStorageCidrs",
+            "remoteWriteCidrs",
+            "alertReceiverCidrs",
+            "grafanaDatabaseCidrs",
+            "grafanaDatabasePort",
+            "identityProviderCidrs",
+            "ingressNamespaces",
+            "workloadNamespaces"
+          ],
+          "properties": {
+            "kubernetesApiCidrs": { "$ref": "#/definitions/cidrList" },
+            "clusterNodeCidrs": { "$ref": "#/definitions/cidrList" },
+            "objectStorageCidrs": { "$ref": "#/definitions/cidrList" },
+            "remoteWriteCidrs": { "$ref": "#/definitions/cidrList" },
+            "alertReceiverCidrs": { "$ref": "#/definitions/cidrList" },
+            "grafanaDatabaseCidrs": { "$ref": "#/definitions/cidrList" },
+            "grafanaDatabasePort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "identityProviderCidrs": { "$ref": "#/definitions/cidrList" },
+            "ingressNamespaces": { "$ref": "#/definitions/nameList" },
+            "workloadNamespaces": { "$ref": "#/definitions/nameList" }
+          }
+        },
+        "remoteWrite": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url", "secretName", "credentialsFile"],
+          "properties": {
+            "url": { "type": "string" },
+            "secretName": { "const": "tenantwright-prometheus-remote-write" },
+            "credentialsFile": { "const": "token" }
+          }
+        },
+        "grafana": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "host",
+            "ingressClassName",
+            "clusterIssuer",
+            "oidcIssuerUrl",
+            "oidcAuthorizationUrl",
+            "oidcTokenUrl",
+            "oidcApiUrl"
+          ],
+          "properties": {
+            "host": { "type": "string" },
+            "ingressClassName": { "type": "string" },
+            "clusterIssuer": { "type": "string" },
+            "oidcIssuerUrl": { "type": "string" },
+            "oidcAuthorizationUrl": { "type": "string" },
+            "oidcTokenUrl": { "type": "string" },
+            "oidcApiUrl": { "type": "string" }
+          }
+        },
+        "backup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schedule", "ttl", "restoreDrillReference"],
+          "properties": {
+            "schedule": { "type": "string", "minLength": 5 },
+            "ttl": { "type": "string", "pattern": "^[1-9][0-9]*h$" },
+            "restoreDrillReference": { "type": "string" }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "enabled": { "const": true } },
+            "required": ["enabled"]
+          },
+          "then": {
+            "properties": {
+              "environment": { "not": { "enum": ["development", "template"] } },
+              "storageClassName": { "minLength": 1 },
+              "restoreDrillReference": { "minLength": 8 },
+              "objectStorage": {
+                "properties": {
+                  "provider": { "const": "s3" },
+                  "endpoint": { "minLength": 8 },
+                  "region": { "minLength": 1 },
+                  "lokiChunksBucket": { "minLength": 3 },
+                  "lokiRulerBucket": { "minLength": 3 },
+                  "lokiAdminBucket": { "minLength": 3 },
+                  "tempoTracesBucket": { "minLength": 3 },
+                  "workloadIdentityServiceAccountAnnotation": { "minLength": 3 },
+                  "workloadIdentityServiceAccountValue": { "minLength": 3 }
+                }
+              },
+              "remoteWrite": {
+                "properties": { "url": { "pattern": "^https://" } }
+              },
+              "grafana": {
+                "properties": {
+                  "host": { "minLength": 3 },
+                  "ingressClassName": { "minLength": 3 },
+                  "clusterIssuer": { "minLength": 3 },
+                  "oidcIssuerUrl": { "pattern": "^https://" },
+                  "oidcAuthorizationUrl": { "pattern": "^https://" },
+                  "oidcTokenUrl": { "pattern": "^https://" },
+                  "oidcApiUrl": { "pattern": "^https://" }
+                }
+              },
+              "backup": {
+                "properties": { "restoreDrillReference": { "minLength": 8 } }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "cidrList": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "nameList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "additionalProperties": true
+}

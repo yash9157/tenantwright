@@ -1,0 +1,34 @@
+# Copy to backend/tenant.values.yaml in an operator-owned values directory.
+# Replace every angle-bracket token; live preflight rejects placeholders.
+replicaCount: 1
+ingress:
+  host: tenantwright-tenant
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+env:
+  AuthServer__Authority: https://<production-auth-host>/
+  PostgreSql__Runtime__Mode: TransactionPool
+  PostgreSql__Runtime__BackendPoolSize: <measured-pgbouncer-backend-pool-size>
+# The shared databases of the dedicatable services, exactly as those services connect to them (no credentials).
+sharedDatabaseTargets:
+  AuditLogs:
+    host: <auditlogs-postgresql-host>
+    port: <auditlogs-postgresql-port>
+    database: <auditlogs-shared-database>
+  Notifications:
+    host: <notifications-postgresql-host>
+    port: <notifications-postgresql-port>
+    database: <notifications-shared-database>
+  Permissions:
+    host: <permissions-postgresql-host>
+    port: <permissions-postgresql-port>
+    database: <permissions-shared-database>
+networkPolicy:
+  ingressController:
+    namespace: <ingress-controller-namespace>
+  postgresql:
+    enabled: true
+    port: <postgresql-port>
+    cidrs:
+    - <reviewed-postgresql-egress-cidr>

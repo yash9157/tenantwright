@@ -1,0 +1,5 @@
+{{- /*
+  One-shot schema migration. The definition lives in the tenantwright-common library
+  chart so all services share ONE copy; this file only calls it.
+*/ -}}
+{{- include "tenantwrightcommon.migrationJob" (dict "root" . "fullname" (include "tenantwrightapp.fullname" .)) }}

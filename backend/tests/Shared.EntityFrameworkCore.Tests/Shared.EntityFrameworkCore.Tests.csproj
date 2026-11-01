@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Fido2" />
+    <PackageReference Include="MassTransit" />
+    <PackageReference Include="MassTransit.RabbitMQ" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\services\AuditLogs\AuditLogs.Application\AuditLogs.Application.csproj" />
+    <ProjectReference Include="..\..\services\Identity\Identity.Application\Identity.Application.csproj" />
+    <ProjectReference Include="..\..\services\Notifications\Notifications.Application\Notifications.Application.csproj" />
+    <ProjectReference Include="..\..\services\Permissions\Permissions.Application\Permissions.Application.csproj" />
+    <ProjectReference Include="..\..\services\Tenant\Tenant.Application\Tenant.Application.csproj" />
+    <ProjectReference Include="..\..\services\Workflows\Workflows.Application\Workflows.Application.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EntityFrameworkCore\Shared.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.Domain\Shared.Domain.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EventBus\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EventBus.Hosting\Shared.EventBus.Hosting.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EventBus.MassTransit\Shared.EventBus.MassTransit.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.MultiTenancy\Shared.MultiTenancy.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.Modularity\Shared.Modularity.csproj" />
+
+    <!--
+      The trusted messaging suite composes a host the way a service does. IUnitOfWorkExecutor carries its behavior on a
+      [UnitOfWork] attribute applied by UnitOfWorkInterceptor, which only runs under Shared.Autofac interception, so the
+      test host must use the same provider factory production hosts use.
+    -->
+    <ProjectReference Include="..\..\shared\Shared.Autofac\Shared.Autofac.csproj" />
+  </ItemGroup>
+
+</Project>

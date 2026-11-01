@@ -1,0 +1,393 @@
+# Render-only fixture. Reserved domains and synthetic digests make this file
+# unsuitable for a live deployment.
+production:
+  enabled: true
+  environment: ci
+  storageClassName: tenantwright-ci-storage
+  restoreDrillReference: OBS-RESTORE-CI-001
+  objectStorage:
+    provider: s3
+    endpoint: https://object-storage.ci.invalid
+    region: ap-south-1
+    lokiChunksBucket: tenantwright-ci-loki-chunks
+    lokiRulerBucket: tenantwright-ci-loki-ruler
+    lokiAdminBucket: tenantwright-ci-loki-admin
+    tempoTracesBucket: tenantwright-ci-tempo-traces
+    workloadIdentityServiceAccountAnnotation: tenantwright.example/role
+    workloadIdentityServiceAccountValue: observability-ci
+  network:
+    kubernetesApiCidrs: [10.0.0.1/32]
+    clusterNodeCidrs: [10.1.0.0/16]
+    objectStorageCidrs: [10.2.0.0/16]
+    remoteWriteCidrs: [10.3.0.0/16]
+    alertReceiverCidrs: [10.4.0.0/16]
+    grafanaDatabaseCidrs: [10.5.0.0/16]
+    grafanaDatabasePort: 5432
+    identityProviderCidrs: [10.6.0.0/16]
+    ingressNamespaces: [ingress-nginx]
+    workloadNamespaces: [tenantwright, tenantwright-temporal]
+  remoteWrite:
+    url: https://metrics.ci.invalid/api/v1/write
+    secretName: tenantwright-prometheus-remote-write
+    credentialsFile: token
+  grafana:
+    host: grafana.ci.invalid
+    ingressClassName: nginx-internal
+    clusterIssuer: tenantwright-ci-issuer
+    oidcIssuerUrl: https://identity.ci.invalid
+    oidcAuthorizationUrl: https://identity.ci.invalid/connect/authorize
+    oidcTokenUrl: https://identity.ci.invalid/connect/token
+    oidcApiUrl: https://identity.ci.invalid/connect/userinfo
+  backup:
+    schedule: "0 */6 * * *"
+    ttl: 168h
+    restoreDrillReference: OBS-RESTORE-CI-001
+
+tenantwrightObservability:
+  hardening:
+    ingressAllowedNamespaces: [ingress-nginx]
+    podDisruptionBudgets:
+      - name: tenantwright-grafana-pdb
+        minAvailable: 1
+        selector:
+          app.kubernetes.io/name: grafana
+
+tempo:
+  enabled: false
+
+tempo-distributed:
+  enabled: true
+  fullnameOverride: tenantwright-tempo
+  reportingEnabled: false
+  global:
+    storageClass: tenantwright-ci-storage
+  serviceAccount:
+    annotations:
+      tenantwright.example/role: observability-ci
+  tempo:
+    image:
+      digest: sha256:0101010101010101010101010101010101010101010101010101010101010101
+  ingester:
+    replicas: 3
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: tenantwright-ci-storage
+  distributor:
+    replicas: 3
+  querier:
+    replicas: 3
+  queryFrontend:
+    replicas: 3
+  compactor:
+    replicas: 2
+  gateway:
+    enabled: true
+    replicas: 3
+    image:
+      digest: sha256:0202020202020202020202020202020202020202020202020202020202020202
+  memcached:
+    replicas: 3
+    image:
+      digest: sha256:0303030303030303030303030303030303030303030303030303030303030303
+  metaMonitoring:
+    serviceMonitor:
+      enabled: true
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: tenantwright-ci-tempo-traces
+        endpoint: object-storage.ci.invalid
+        region: ap-south-1
+        insecure: false
+
+loki:
+  deploymentMode: Distributed
+  serviceAccount:
+    annotations:
+      tenantwright.example/role: observability-ci
+  loki:
+    image:
+      digest: sha256:0404040404040404040404040404040404040404040404040404040404040404
+    commonConfig:
+      replication_factor: 3
+    schemaConfig:
+      configs:
+        - from: "2026-01-01"
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index:
+            prefix: tenantwright_loki_index_
+            period: 24h
+    storage:
+      type: s3
+      bucketNames:
+        chunks: tenantwright-ci-loki-chunks
+        ruler: tenantwright-ci-loki-ruler
+        admin: tenantwright-ci-loki-admin
+      s3:
+        endpoint: https://object-storage.ci.invalid
+        region: ap-south-1
+        s3ForcePathStyle: false
+        insecure: false
+    compactor:
+      retention_enabled: true
+      delete_request_store: s3
+  singleBinary:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  backend:
+    replicas: 0
+  distributor:
+    replicas: 3
+    maxUnavailable: 1
+  ingester:
+    replicas: 3
+    zoneAwareReplication:
+      enabled: false
+    persistence:
+      enabled: true
+      claims:
+        - name: data
+          accessModes: [ReadWriteOnce]
+          size: 20Gi
+          storageClass: tenantwright-ci-storage
+      whenDeleted: Retain
+      whenScaled: Retain
+  querier:
+    replicas: 3
+    maxUnavailable: 1
+  queryFrontend:
+    replicas: 3
+    maxUnavailable: 1
+  queryScheduler:
+    replicas: 2
+  compactor:
+    replicas: 2
+    persistence:
+      enabled: true
+      claims:
+        - name: data
+          accessModes: [ReadWriteOnce]
+          size: 20Gi
+          storageClass: tenantwright-ci-storage
+  indexGateway:
+    replicas: 3
+    maxUnavailable: 1
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: tenantwright-ci-storage
+      whenDeleted: Retain
+      whenScaled: Retain
+  ruler:
+    enabled: true
+    replicas: 2
+    maxUnavailable: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: tenantwright-ci-storage
+  gateway:
+    replicas: 3
+    image:
+      digest: sha256:0505050505050505050505050505050505050505050505050505050505050505
+  lokiCanary:
+    image:
+      digest: sha256:0606060606060606060606060606060606060606060606060606060606060606
+  chunksCache:
+    replicas: 3
+  resultsCache:
+    replicas: 3
+  memcached:
+    image:
+      digest: sha256:1515151515151515151515151515151515151515151515151515151515151515
+  memcachedExporter:
+    image:
+      digest: sha256:1616161616161616161616161616161616161616161616161616161616161616
+  sidecar:
+    image:
+      digest: sha256:1717171717171717171717171717171717171717171717171717171717171717
+
+kube-prometheus-stack:
+  alertmanager:
+    alertmanagerSpec:
+      replicas: 3
+      podAntiAffinity: hard
+      image:
+        sha: "0707070707070707070707070707070707070707070707070707070707070707"
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: tenantwright-ci-storage
+            accessModes: [ReadWriteOnce]
+            resources:
+              requests:
+                storage: 10Gi
+  prometheus:
+    prometheusSpec:
+      replicas: 2
+      podAntiAffinity: hard
+      image:
+        sha: "0808080808080808080808080808080808080808080808080808080808080808"
+      secrets: [tenantwright-prometheus-remote-write]
+      remoteWrite:
+        - url: https://metrics.ci.invalid/api/v1/write
+          authorization:
+            credentialsFile: /etc/prometheus/secrets/tenantwright-prometheus-remote-write/token
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: tenantwright-ci-storage
+            accessModes: [ReadWriteOnce]
+            resources:
+              requests:
+                storage: 50Gi
+  prometheusOperator:
+    image:
+      sha: "0909090909090909090909090909090909090909090909090909090909090909"
+    admissionWebhooks:
+      patch:
+        image:
+          sha: "1818181818181818181818181818181818181818181818181818181818181818"
+    prometheusConfigReloader:
+      image:
+        sha: "1010101010101010101010101010101010101010101010101010101010101010"
+  grafana:
+    replicas: 2
+    persistence:
+      enabled: false
+    image:
+      sha: "1111111111111111111111111111111111111111111111111111111111111111"
+    sidecar:
+      image:
+        sha: "1212121212121212121212121212121212121212121212121212121212121212"
+    envValueFrom:
+      GF_DATABASE_HOST:
+        secretKeyRef: {name: tenantwright-grafana-database, key: host}
+      GF_DATABASE_NAME:
+        secretKeyRef: {name: tenantwright-grafana-database, key: name}
+      GF_DATABASE_USER:
+        secretKeyRef: {name: tenantwright-grafana-database, key: user}
+      GF_DATABASE_PASSWORD:
+        secretKeyRef: {name: tenantwright-grafana-database, key: password}
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+        secretKeyRef: {name: tenantwright-grafana-oidc, key: client-id}
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+        secretKeyRef: {name: tenantwright-grafana-oidc, key: client-secret}
+    extraSecretMounts:
+      - name: tenantwright-grafana-database-ca
+        secretName: tenantwright-grafana-database-ca
+        defaultMode: 0440
+        mountPath: /etc/grafana/database-ca
+        readOnly: true
+    grafana.ini:
+      database:
+        type: postgres
+        ssl_mode: verify-full
+        ca_cert_path: /etc/grafana/database-ca/ca.crt
+      auth.generic_oauth:
+        enabled: true
+        allow_sign_up: true
+        scopes: openid profile email groups
+        use_pkce: true
+        role_attribute_strict: true
+        role_attribute_path: "contains(groups[*], 'tenantwright-observability-admin') && 'Admin' || contains(groups[*], 'tenantwright-observability-editor') && 'Editor' || 'Viewer'"
+        auth_url: https://identity.ci.invalid/connect/authorize
+        token_url: https://identity.ci.invalid/connect/token
+        api_url: https://identity.ci.invalid/connect/userinfo
+      server:
+        root_url: https://grafana.ci.invalid
+    ingress:
+      ingressClassName: nginx-internal
+      annotations:
+        cert-manager.io/cluster-issuer: tenantwright-ci-issuer
+      hosts: [grafana.ci.invalid]
+      tls:
+        - secretName: tenantwright-grafana-tls
+          hosts: [grafana.ci.invalid]
+    additionalDataSources:
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tenantwright-tempo-gateway
+        isDefault: false
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: -5m
+            spanEndTimeShift: 5m
+            filterByTraceID: true
+            filterBySpanID: false
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://tenantwright-loki-gateway
+        isDefault: false
+        jsonData:
+          derivedFields:
+            - name: TraceId
+              matcherRegex: trace_id=([0-9a-fA-F]+)
+              datasourceUid: tempo
+              url: $${__value.raw}
+  kube-state-metrics:
+    image:
+      sha: "sha256:1919191919191919191919191919191919191919191919191919191919191919"
+  prometheus-node-exporter:
+    image:
+      digest: sha256:2020202020202020202020202020202020202020202020202020202020202020
+
+opentelemetry-collector:
+  replicaCount: 3
+  image:
+    digest: sha256:1313131313131313131313131313131313131313131313131313131313131313
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: opentelemetry-collector
+  config:
+    exporters:
+      otlp/tempo:
+        endpoint: tenantwright-tempo-distributor:4317
+        tls:
+          insecure: true
+      prometheus:
+        endpoint: 0.0.0.0:8889
+      otlphttp/loki:
+        endpoint: http://tenantwright-loki-gateway/otlp
+        tls:
+          insecure: true
+
+prometheus-blackbox-exporter:
+  replicas: 2
+  image:
+    digest: sha256:1414141414141414141414141414141414141414141414141414141414141414
+  podDisruptionBudget:
+    maxUnavailable: 1
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus-blackbox-exporter
+
+promtail:
+  image:
+    digest: sha256:2121212121212121212121212121212121212121212121212121212121212121
+  config:
+    clients:
+      - url: http://tenantwright-loki-gateway/loki/api/v1/push

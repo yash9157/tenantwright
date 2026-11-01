@@ -1,0 +1,39 @@
+# The backend (backend/) keeps its own .gitignore file.
+
+# Local editor and OS files.
+/.vscode/
+.DS_Store
+Thumbs.db
+
+# Local logs and temporary files.
+*.log
+*.tmp
+*.temp
+
+# Secrets and local environment files.
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+**/charts/environments/*/private/
+
+# Personal Kiro tooling (not part of the template)
+/ltm/
+/.kiro/
+/.claude/
+CLAUDE.md
+/.kiro-scratch/
+# --- ltm-power ---
+ltm/store/*.jsonl
+ltm/runtime/*
+ltm/reports/*
+ltm/snapshots/*
+# --- /ltm-power ---
+
+# Transient agent working directories.
+.agent-scratch/
+.agy-runs/
+semantic-review/

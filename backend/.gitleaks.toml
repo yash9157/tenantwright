@@ -1,0 +1,36 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Messaging topology names public verification-key Secret entries, not secret values."
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)charts/environments/messaging-production\.values\.yaml$''']
+regexes = ['''^\s*secretKey:\s*tenantwright-(facilities|notifications|permissions)-v1\.pem\s*$''']
+
+[[rules.allowlists]]
+description = "Registration test uses a deterministic fake idempotency token."
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)tests/Auth\.Tests/RegistrationProvisioningServiceTests\.cs$''']
+regexes = ['''IdempotencyToken\s*=''']
+
+[[rules.allowlists]]
+description = "Providers custody tests use deterministic fake token hashes."
+condition = "AND"
+regexTarget = "line"
+paths = [
+  '''(^|/)tests/Providers\.Tests/EvidenceCustodyTests\.cs$''',
+  '''(^|/)tests/Providers\.Tests/ProvidersPostgresRelationalTests\.cs$'''
+]
+regexes = ['''private const string TokenHash\s*=''']
+
+[[rules.allowlists]]
+description = "Blob adapter test uses the documented Azurite-style fake account key."
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)tests/Shared\.BlobStoring\.Tests/BlobStoringTests\.cs$''']
+regexes = ['''AccountKey=''']

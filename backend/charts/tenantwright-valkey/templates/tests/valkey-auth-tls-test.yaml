@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-auth-tls-test
+  labels:
+    app.kubernetes.io/name: tenantwright-valkey
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: valkey-client
+      image: {{ printf "%s/%s@%s" .Values.valkey.image.registry .Values.valkey.image.repository .Values.valkey.image.digest | quote }}
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      command:
+        - /bin/sh
+        - -ec
+      args:
+        - |
+          export VALKEYCLI_AUTH="$(cat /auth/default)"
+          valkey-cli --no-auth-warning \
+            --tls --cacert /tls/ca.crt \
+            -h tenantwright-valkey --user default ping |
+            grep -qx PONG
+
+          export VALKEYCLI_AUTH="$(cat /auth/replication)"
+          valkey-cli --no-auth-warning \
+            --tls --cacert /tls/ca.crt \
+            -h tenantwright-valkey --user replication ping |
+            grep -qx PONG
+
+          if valkey-cli --no-auth-warning \
+            --tls --cacert /tls/ca.crt \
+            -h tenantwright-valkey --user replication \
+            set tenantwright:chart-test:forbidden value 2>&1 |
+            grep -q '^OK$'; then
+            echo "Replication ACL unexpectedly permitted a key write." >&2
+            exit 1
+          fi
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+      volumeMounts:
+        - name: auth
+          mountPath: /auth
+          readOnly: true
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+  volumes:
+    - name: auth
+      secret:
+        secretName: tenantwright-valkey-auth
+        items:
+          - key: default
+            path: default
+          - key: replication
+            path: replication
+    - name: tls
+      secret:
+        secretName: tenantwright-valkey-tls
+        items:
+          - key: ca.crt
+            path: ca.crt

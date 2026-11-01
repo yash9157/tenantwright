@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\shared\Shared.EventContracts\Shared.EventContracts.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EventBus\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EventBus.MassTransit\Shared.EventBus.MassTransit.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.Modularity\Shared.Modularity.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.MultiTenancy\Shared.MultiTenancy.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,84 @@
+{
+  "skills": {
+    "dotnet-trace-collect": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "microbenchmarking": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-api-event-contracts": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-auth-identity-flow": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-background-processing": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-brainstorming": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-documentation": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-observability-operations": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-permissions-authorization": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-platform-ops": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-postgresql-efcore": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-repo-governance": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-service-runtime": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-service-scaffolding": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-testing-strategy": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    },
+    "tenantwright-unit-of-work": {
+      "status": "installed",
+      "disabled": false,
+      "error": null
+    }
+  }
+}

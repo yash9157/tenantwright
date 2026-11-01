@@ -1,0 +1,93 @@
+@page
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.AcceptInviteModel
+@{
+    ViewData["Title"] = "Accept invitation";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+@if (!Model.InvitationIsValid)
+{
+    <section class="auth-card overflow-hidden rounded-card">
+        <div class="brand-hairline h-px w-full"></div>
+        <div class="relative p-6 sm:p-8 text-center">
+            <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "alert-circle", Tone = "danger", Heading = "Invitation unavailable", Description = Model.InvitationStatusMessage })" />
+            <div class="mt-6">
+                <a class="btn btn-primary" href="@AuthPageRoutes.SignIn">Back to sign in</a>
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    <section class="auth-card overflow-hidden rounded-card">
+        <div class="brand-hairline h-px w-full"></div>
+        <div class="relative p-6 sm:p-8">
+
+            <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "user", Heading = "Accept your invitation", Description = $"Finish setting up your account for {Model.TenantName}." })" />
+
+            <dl class="mt-5 grid gap-2.5 rounded-2xl bg-surface-low p-4 ring-1 ring-outline/50">
+                <div class="flex items-center justify-between gap-4">
+                    <dt class="text-xs font-semibold uppercase tracking-wider text-on-surface-soft">Organization</dt>
+                    <dd class="text-sm font-semibold text-on-surface">@Model.TenantName</dd>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                    <dt class="text-xs font-semibold uppercase tracking-wider text-on-surface-soft">Email</dt>
+                    <dd class="truncate text-sm text-on-surface">@Model.InvitationEmail</dd>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Model.InvitationRoleName))
+                {
+                    <div class="flex items-center justify-between gap-4">
+                        <dt class="text-xs font-semibold uppercase tracking-wider text-on-surface-soft">Role</dt>
+                        <dd class="text-sm text-on-surface">@Model.InvitationRoleName</dd>
+                    </div>
+                }
+            </dl>
+
+            <form method="post" action="@AuthPageRoutes.AcceptInvite" asp-antiforgery="true" data-auth-form="true" data-auth-password-policy='@System.Text.Json.JsonSerializer.Serialize(Model.PasswordPolicy)' novalidate class="mt-5 space-y-4">
+                <partial name="Partials/_AuthAlert" model="@(new AuthAlertModel { Message = Model.ErrorMessage ?? string.Empty })" />
+                <partial name="Partials/_AuthValidationSummary" />
+
+                <input type="hidden" asp-for="Input.Token" autocomplete="off" />
+                <input type="hidden" asp-for="Input.Email" autocomplete="off" />
+
+                <partial name="Partials/_AuthField" model="@(new AuthFieldModel { Name = "Input.UserName", Label = "Username", Value = Model.Input.UserName, Icon = "id-card", Placeholder = "Choose a username", Validate = "username", Autocomplete = "username" })" />
+
+                <partial name="Partials/_AuthField" model="@(new AuthFieldModel { Name = "Input.PhoneNumber", Label = "Phone number", Value = Model.Input.PhoneNumber, Icon = "phone", Type = "tel", InputMode = "tel", Placeholder = "+1 (555) 000-0000", Validate = "phone", Autocomplete = "tel", Optional = true })" />
+
+                <div data-auth-field="true">
+                    <label asp-for="Input.Password" class="auth-label">Password</label>
+                    <div class="auth-control auth-control--icon" x-data="authPasswordField">
+                        <span class="auth-control__icon">@AuthIcons.Get("lock")</span>
+                        <input asp-for="Input.Password" id="accept-invite-password" x-bind:type="passwordType" class="auth-input pr-12" autocomplete="new-password" placeholder="Create a password" data-auth-validate="new-password" data-auth-revalidate-target="#accept-invite-confirm-password" data-auth-required-message="Password is required." />
+                        <partial name="Partials/_AuthPasswordToggle" />
+                    </div>
+                    <span asp-validation-for="Input.Password" class="auth-error"></span>
+                </div>
+
+                <div data-auth-field="true">
+                    <label asp-for="Input.ConfirmPassword" class="auth-label">Confirm password</label>
+                    <div class="auth-control auth-control--icon" x-data="authPasswordField">
+                        <span class="auth-control__icon">@AuthIcons.Get("lock")</span>
+                        <input asp-for="Input.ConfirmPassword" id="accept-invite-confirm-password" x-bind:type="passwordType" class="auth-input pr-12" autocomplete="new-password" placeholder="Re-enter your password" data-auth-validate="confirm-password" data-auth-password-match="#accept-invite-password" data-auth-required-message="Confirm your password." />
+                        <partial name="Partials/_AuthPasswordToggle" />
+                    </div>
+                    <span asp-validation-for="Input.ConfirmPassword" class="auth-error"></span>
+                </div>
+
+                <partial name="Partials/_PasswordRequirements" model="@Model.PasswordPolicy.RequiredLength" />
+
+                <div class="pt-1">
+                    @await Html.PartialAsync("Partials/_AuthActionButton", new AuthActionButtonModel
+                    {
+                        Text = "Create account",
+                        IconSymbol = "arrow_forward",
+                        IsEmerald = true,
+                        LoadingText = "Creating account…"
+                    })
+                </div>
+            </form>
+        </div>
+    </section>
+}

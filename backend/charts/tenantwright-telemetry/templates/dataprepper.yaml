@@ -1,0 +1,70 @@
+{{- if .Values.dataPrepper.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenantwright-data-prepper
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.dataPrepper.replicas }}
+  selector: { matchLabels: { app: tenantwright-data-prepper } }
+  template:
+    metadata:
+      labels: { app: tenantwright-data-prepper }
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/dataprepper-config.yaml") . | sha256sum }}
+    spec:
+      securityContext: { seccompProfile: { type: RuntimeDefault } }
+      initContainers:
+        - name: materialize-dataprepper-config
+          image: {{ .Values.dataPrepper.image }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              escape_replacement() {
+                sed 's/[\\&|]/\\&/g'
+              }
+              username="$(escape_replacement < /var/run/tenantwright-opensearch/username)"
+              password="$(escape_replacement < /var/run/tenantwright-opensearch/password)"
+              umask 077
+              sed \
+                -e "s|__OPENSEARCH_USERNAME__|${username}|g" \
+                -e "s|__OPENSEARCH_PASSWORD__|${password}|g" \
+                /config-template/pipelines.yaml > /runtime-config/pipelines.yaml
+              test -s /runtime-config/pipelines.yaml
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 128Mi }
+          volumeMounts:
+            - { name: config-template, mountPath: /config-template, readOnly: true }
+            - { name: runtime-config, mountPath: /runtime-config }
+            - { name: opensearch-credentials, mountPath: /var/run/tenantwright-opensearch, readOnly: true }
+      containers:
+        - name: data-prepper
+          image: {{ .Values.dataPrepper.image }}
+          env:
+            - { name: JAVA_TOOL_OPTIONS, value: "-Djava.net.preferIPv4Stack=true" }
+          ports: [{name: traces, containerPort: 21890}, {name: health, containerPort: 4900}]
+          resources: {{- toYaml .Values.dataPrepper.resources | nindent 12 }}
+          readinessProbe: { tcpSocket: { port: health }, initialDelaySeconds: 20, periodSeconds: 10 }
+          livenessProbe: { tcpSocket: { port: health }, initialDelaySeconds: 30, periodSeconds: 20 }
+          volumeMounts: [{ name: runtime-config, mountPath: /usr/share/data-prepper/pipelines, readOnly: true }]
+      volumes:
+        - { name: config-template, configMap: { name: tenantwright-data-prepper } }
+        - { name: runtime-config, emptyDir: {} }
+        - name: opensearch-credentials
+          secret:
+            secretName: {{ .Values.opensearch.existingSecret }}
+            items:
+              - { key: {{ .Values.opensearch.usernameKey }}, path: username }
+              - { key: {{ .Values.opensearch.passwordKey }}, path: password }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenantwright-data-prepper
+  namespace: {{ .Values.namespace }}
+spec:
+  selector: { app: tenantwright-data-prepper }
+  ports: [{name: traces, port: 21890}, {name: health, port: 4900}]
+{{- end }}

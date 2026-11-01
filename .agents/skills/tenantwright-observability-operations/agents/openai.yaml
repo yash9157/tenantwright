@@ -1,0 +1,4 @@
+interface:
+  display_name: "TenantWright Observability Operations"
+  short_description: "Operate telemetry, alerts, dashboards, and response"
+  default_prompt: "Use $tenantwright-observability-operations to trace the active telemetry path from source, then design or verify actionable signals and safe operator response."

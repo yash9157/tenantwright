@@ -1,0 +1,17 @@
+@using Auth.Pages.Account.Partials
+@model AuthAlertModel
+
+@if (!string.IsNullOrWhiteSpace(Model.Message))
+{
+    var icon = Model.Tone switch
+    {
+        "success" => "check-circle",
+        "info" => "info",
+        "warning" => "alert-circle",
+        _ => "alert-circle"
+    };
+    <div class="auth-alert auth-alert--@Model.Tone" role="alert" aria-live="assertive">
+        @AuthIcons.Get(icon, "size-5", "2")
+        <span class="font-medium">@Model.Message</span>
+    </div>
+}

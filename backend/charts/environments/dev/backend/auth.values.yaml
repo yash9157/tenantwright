@@ -1,0 +1,60 @@
+env:
+  EfCore__AutoMigrate: 'false'
+  Auth__Quartz__AutoCreateSchema: 'false'
+networkPolicy:
+  ingressController:
+    namespace: kube-system
+image:
+  repository: yash9157/tenantwright-auth
+  tag: dev
+  digest: sha256:cbac911fb421bdea92b7490e1a21182adf0fdc2fbcabfcc7cff28ca54bbd0f01
+  pullPolicy: IfNotPresent
+config:
+  forwardedHeaders:
+    knownNetworks:
+    - 10.42.0.0/16
+autoscaling:
+  enabled: false
+  maxReplicas: 2
+migrationJob:
+  enabled: true
+  env:
+    Auth__Quartz__AutoCreateSchema: 'true'
+secretRefs:
+- envName: ConnectionStrings__Default
+  secretName: tenantwright-auth-db
+  key: connection-string
+- envName: AuditLogging__Signatures__Keys__auth-v1
+  secretName: tenantwright-auth-audit-signing
+  key: hmac-v1
+- envName: TenantConnectionStrings__Protection__Keys__tenant-v1
+  secretName: tenantwright-tenant-connection-protection
+  key: aes-v1
+- envName: Caching__Valkey__Password
+  secretName: tenantwright-valkey-auth
+  key: default
+- envName: OpenIddict__Clients__Internal__Secret
+  secretName: tenantwright-auth-secrets
+  key: openiddict-internal-client-secret
+- envName: OpenIddict__Clients__NotificationsInternal__Secret
+  secretName: tenantwright-notifications-auth
+  key: openiddict-notifications-internal-client-secret
+- envName: OpenIddict__Clients__TenantInternal__Secret
+  secretName: tenantwright-tenant-auth
+  key: openiddict-tenant-internal-client-secret
+- envName: OpenIddict__Clients__PermissionsInternal__Secret
+  secretName: tenantwright-permissions-auth
+  key: openiddict-permissions-internal-client-secret
+- envName: OpenIddict__SigningCertificate__Password
+  secretName: tenantwright-auth-secrets
+  key: openiddict-signing-cert-password
+- envName: OpenIddict__EncryptionCertificate__Password
+  secretName: tenantwright-auth-secrets
+  key: openiddict-encryption-cert-password
+- envName: Auth__PublicTenantRegistration__HashKey
+  secretName: tenantwright-auth-public-registration
+  key: rate-limit-hash-key
+  optional: true
+ingress:
+  annotations:
+    acme.cert-manager.io/http01-edit-in-place: 'true'

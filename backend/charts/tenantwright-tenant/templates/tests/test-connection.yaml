@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "tenantwrightapp.fullname" . }}-test-connection"
+  labels:
+    {{- include "tenantwrightapp.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: service-health
+      image: "{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}@{{ required "tests.image.digest is required" .Values.tests.image.digest }}"
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        readOnlyRootFilesystem: true
+      command: ["/bin/sh", "-ec"]
+      args:
+        - >-
+          wget --quiet --tries=1 --timeout={{ .Values.tests.timeoutSeconds }}
+          --output-document=-
+          http://{{ include "tenantwrightapp.fullname" . }}:{{ .Values.service.port }}{{ .Values.probes.startup.path }}

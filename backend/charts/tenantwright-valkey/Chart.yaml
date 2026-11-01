@@ -1,0 +1,10 @@
+apiVersion: v2
+name: tenantwright-valkey
+description: Production Valkey platform for TenantWright caches, sessions, locks, SignalR, and wake signals
+type: application
+version: 0.1.1
+appVersion: "9.1.2"
+dependencies:
+  - name: valkey
+    version: 0.11.0-tenantwright.1
+    repository: file://vendor/valkey

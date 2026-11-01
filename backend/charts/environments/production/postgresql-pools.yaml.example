@@ -1,0 +1,35 @@
+# Copy outside the repository, replace every angle-bracket token from current
+# provider limits and load evidence, and pass the resulting file to
+# charts/helm-install-all.ps1 -PostgreSqlPoolAllocationPath.
+#
+# backendPoolSize is the provider PgBouncer pool's PostgreSQL server-connection
+# limit. It is not the number of Npgsql client connections.
+#
+# Free-tier managed PostgreSQL may not provide PgBouncer. Set this capability to
+# true only after the selected production plan exposes Connection pools and
+# the pool endpoint has been provisioned.
+providerConnectionPoolingAvailable: <true-only-after-provider-capability-is-verified>
+providerConnectionLimit: <current-provider-postgresql-connection-limit>
+reservedBackendConnections: <measured-migration-monitoring-and-incident-reserve>
+services:
+  tenantwright-auditlogs:
+    mode: TransactionPool
+    backendPoolSize: <measured-auditlogs-backend-pool-size>
+  tenantwright-auth:
+    mode: TransactionPool
+    backendPoolSize: <measured-auth-backend-pool-size>
+  tenantwright-identity:
+    mode: TransactionPool
+    backendPoolSize: <measured-identity-backend-pool-size>
+  tenantwright-notifications:
+    mode: TransactionPool
+    backendPoolSize: <measured-notifications-backend-pool-size>
+  tenantwright-permissions:
+    mode: TransactionPool
+    backendPoolSize: <measured-permissions-backend-pool-size>
+  tenantwright-tenant:
+    mode: TransactionPool
+    backendPoolSize: <measured-tenant-backend-pool-size>
+  tenantwright-workflows:
+    mode: TransactionPool
+    backendPoolSize: <measured-workflows-backend-pool-size>

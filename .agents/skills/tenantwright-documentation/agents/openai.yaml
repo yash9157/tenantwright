@@ -1,0 +1,4 @@
+interface:
+  display_name: "TenantWright Documentation"
+  short_description: "Write source-grounded backend template docs"
+  default_prompt: "Use $tenantwright-documentation to update the canonical flat documentation from current source evidence and report any claims that remain unverified."

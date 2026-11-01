@@ -1,0 +1,39 @@
+controller:
+  replicaCount: 1
+  ingressClass:
+    name: nginx
+    create: true
+    setAsDefaultIngress: true
+  nginxplus: false
+  enableCustomResources: false
+  enableSnippets: false
+  enableOIDC: false
+  enableTLSPassthrough: false
+  image:
+    repository: nginx/nginx-ingress
+    digest: sha256:73ba8849b5d3206e273273449edfe7f68966d6f45e8afc9e50eec0c11a6a9d1e
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+  readOnlyRootFilesystem: true
+  config:
+    entries:
+      external-status-address: 40.81.242.103
+      server-tokens: 'false'
+      ssl-protocols: TLSv1.2 TLSv1.3
+      ssl-redirect: 'true'
+      http-redirect-code: '308'
+      large-client-header-buffers: 4 32k
+  service:
+    type: LoadBalancer
+    externalTrafficPolicy: Local
+  telemetryReporting:
+    enable: false
+prometheus:
+  create: false
+nginxAgent:
+  enable: false

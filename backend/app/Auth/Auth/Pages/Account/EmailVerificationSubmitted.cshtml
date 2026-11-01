@@ -1,0 +1,23 @@
+@page "/Account/EmailVerification/Submitted"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.EmailVerificationSubmittedModel
+@{
+    ViewData["Title"] = "Check your email";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "mail", Heading = "Check your email", Description = "If your account still needs verification, we've sent a verification link to your email." })" />
+
+        <p class="mt-4 text-center text-sm leading-relaxed text-on-surface-soft">Open the email and select the verification link to continue.</p>
+
+        <div class="mt-6 space-y-3">
+            <partial name="Partials/_AuthResend" model="@(new AuthResendModel { IdleLabel = "Resend verification email", Href = AuthPageRoutes.EmailVerificationResend, Key = "auth.resend.verify", IsPrimary = true })" />
+            <a class="btn btn-secondary" href="@AuthPageRoutes.SignIn">Back to sign in</a>
+        </div>
+    </div>
+</section>

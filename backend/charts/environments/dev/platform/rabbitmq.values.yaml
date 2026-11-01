@@ -1,0 +1,17 @@
+cluster:
+  replicas: 1
+  persistence:
+    storage: 8Gi
+    storageClassName: local-path
+  terminationGracePeriodSeconds: 300
+  resources:
+    requests:
+      cpu: 300m
+      memory: 3Gi
+    limits:
+      cpu: '2'
+      memory: 3Gi
+pki:
+  enabled: true
+podDisruptionBudget:
+  minAvailable: 1

@@ -1,0 +1,16 @@
+{{- $clusterName := .Values.cluster.name -}}
+{{- range .Values.principals }}
+---
+apiVersion: rabbitmq.com/v1beta1
+kind: User
+metadata:
+  name: {{ .name }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-principal
+spec:
+  rabbitmqClusterReference:
+    name: {{ $clusterName }}
+  importCredentialsSecret:
+    name: {{ required "every principal requires credentialsSecretName" .credentialsSecretName }}
+{{- end }}

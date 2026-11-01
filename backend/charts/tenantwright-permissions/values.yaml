@@ -1,0 +1,300 @@
+nameOverride: ''
+fullnameOverride: tenantwright-permissions
+image:
+  repository: yash9157/tenantwright-permissions
+  tag: dev
+  digest: ''
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+replicaCount: 1
+rollout:
+  revisionHistoryLimit: 5
+  progressDeadlineSeconds: 600
+  minReadySeconds: 10
+  maxUnavailable: 0
+  maxSurge: 1
+terminationGracePeriodSeconds: 60
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+ingress:
+  # Permissions is an internal ClusterIP authority; do not publish the retired
+  # permissions.dev.example.com hostname.
+  enabled: false
+  className: nginx
+  annotations: {}
+  # Retained as the internal probe Host header and AllowedHosts entry even
+  # though no Ingress resource is rendered.
+  host: tenantwright-permissions
+  hosts: []
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: false
+    secretName: ''
+  certManager:
+    enabled: true
+    annotations: {}
+    issuerRef:
+      name: letsencrypt-prod
+      kind: ClusterIssuer
+      group: cert-manager.io
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+resources:
+  requests:
+    cpu: 50m
+    memory: 384Mi
+  limits:
+    cpu: 700m
+    memory: 1Gi
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpread:
+  enabled: true
+  maxSkew: 1
+  topologyKey: kubernetes.io/hostname
+  whenUnsatisfiable: ScheduleAnyway
+env:
+  ASPNETCORE_ENVIRONMENT: Production
+  Shared__Data__ConnectionStringResolver__AllowHostFallbackForTenant: 'true'
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://tenantwright-otel-collector.tenantwright-telemetry.svc:4317
+  OTEL_SERVICE_NAME: tenantwright-permissions
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  Hosting__HttpsRedirection__Enabled: 'false'
+  PostgreSql__Runtime__RequireExplicitConfiguration: 'true'
+  PostgreSql__Runtime__Mode: Direct
+  PostgreSql__Runtime__BackendPoolSize: '0'
+  PostgreSql__Runtime__ClientPool__Pooling: 'true'
+  PostgreSql__Runtime__ClientPool__MaximumPoolSize: '4'
+  PostgreSql__Runtime__ClientPool__MinimumPoolSize: '0'
+  PostgreSql__Runtime__ClientPool__ConnectionIdleLifetimeSeconds: '60'
+  PostgreSql__Runtime__ClientPool__ConnectionPruningIntervalSeconds: '10'
+  PostgreSql__Runtime__ClientPool__ConnectionLifetimeSeconds: '300'
+  PostgreSql__Runtime__ClientPool__ConnectionTimeoutSeconds: '15'
+  PostgreSql__Runtime__ClientPool__CommandTimeoutSeconds: '30'
+  AuthServer__Authority: https://auth.dev.example.com/
+  AuthServer__Audiences: permissions
+  Caching__Provider: Valkey
+  Caching__Valkey__Configuration: 'tenantwright-valkey:6379,ssl=True,sslHost=tenantwright-valkey,abortConnect=False,connectRetry=3,connectTimeout=5000,syncTimeout=5000'
+  Caching__Valkey__InstanceName: 'TenantWright_'
+  Caching__Valkey__User: default
+  Caching__Valkey__TrustedCaCertificatePath: /app/valkey-trust/ca.crt
+  DistributedLocking__Provider: Valkey
+  AuditLogging__Signatures__CurrentKeyId: permissions-v1
+  AuditLogging__Signatures__FreshnessTolerance: '00:05:00'
+  AuditLogging__Signatures__RequireSignatures: 'true'
+  TenantConnectionStrings__Protection__CurrentKeyId: tenant-v1
+  TenantConnectionStrings__Protection__CurrentKeyVersion: '1'
+  TenantConnectionStrings__Protection__RequireProtectedValues: 'true'
+  IdentityPermissionTargetValidation__BaseAddress: http://tenantwright-identity:8080/
+  IdentityPermissionTargetValidation__Scope: identity-internal
+  IdentityPermissionTargetValidation__ClientId: auth-internal
+  IdentityPermissionTargetValidation__TimeoutSeconds: '3'
+messaging:
+  # Messaging:Provider of this workload: None (bus-free), MassTransit or Wolverine.
+  provider: None
+  rabbitMqSecretName: tenantwright-permissions-rabbitmq
+  rabbitMqTrustedCaSecretName: tenantwright-rabbitmq-ca
+  rabbitMqTrustedCaSecretKey: ca.crt
+  rabbitMqClientTlsSecretName: tenantwright-permissions-rabbitmq-client-tls
+  massTransit:
+    # The commercial licence, mounted as MT_LICENSE only when provider is MassTransit.
+    licenseSecretName: tenantwright-masstransit-license
+    licenseSecretKey: license
+  trust:
+    initImage:
+      repository: busybox
+      tag: 1.37.0
+      digest: sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
+      pullPolicy: IfNotPresent
+    activeKeyId: tenantwright-permissions-v1
+    privateKeySecretName: tenantwright-permissions-messaging-signing
+    privateKeySecretKey: private.pem
+    publicKeysSecretName: tenantwright-messaging-verification-keys
+    publicKeys: []
+config:
+  forwardedHeaders:
+    knownNetworks: []
+    knownProxies: []
+secretEnv:
+  create: false
+  existingSecret: ''
+  annotations: {}
+  type: Opaque
+  keys: {}
+  stringData: {}
+secretRefs:
+- envName: ConnectionStrings__Default
+  secretName: tenantwright-permissions-db
+  key: connection-string
+- envName: AuditLogging__Signatures__Keys__permissions-v1
+  secretName: tenantwright-permissions-audit-signing
+  key: hmac-v1
+- envName: RemoteFeatureChecker__ClientSecret
+  secretName: tenantwright-auth-secrets
+  key: openiddict-internal-client-secret
+- envName: TenantConnectionStrings__Protection__Keys__tenant-v1
+  secretName: tenantwright-tenant-connection-protection
+  key: aes-v1
+- envName: IdentityPermissionTargetValidation__ClientSecret
+  secretName: tenantwright-auth-secrets
+  key: openiddict-internal-client-secret
+- envName: OpenIddict__Clients__PermissionsInternal__Secret
+  secretName: tenantwright-permissions-auth
+  key: openiddict-permissions-internal-client-secret
+- envName: Caching__Valkey__Password
+  secretName: tenantwright-valkey-auth
+  key: default
+extraEnv: []
+probes:
+  startup:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 60
+  readiness:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 6
+  liveness:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 2
+    failureThreshold: 3
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 70
+  # Disabled: steady .NET memory use kept small workloads at two replicas.
+  # targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+networkPolicy:
+  enabled: true
+  ingressController:
+    enabled: true
+    namespace: ingress-nginx
+  postgresql:
+    enabled: true
+    port: 5432
+    cidrs: []
+  ingress:
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  - to:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 5671
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tenantwright-telemetry
+    ports:
+    - protocol: TCP
+      port: 4317
+  - ports:
+    - protocol: TCP
+      port: 443
+pdb:
+  enabled: true
+  minAvailable: 1
+tests:
+  timeoutSeconds: 10
+  image:
+    repository: busybox
+    tag: 1.37.0
+    digest: sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
+    pullPolicy: IfNotPresent
+extraVolumes:
+- name: tmp
+  emptyDir:
+    sizeLimit: 64Mi
+- name: valkey-trust
+  secret:
+    secretName: tenantwright-valkey-tls
+    items:
+    - key: ca.crt
+      path: ca.crt
+- name: postgresql-trust
+  secret:
+    secretName: tenantwright-permissions-postgresql-ca
+    items:
+    - key: ca.crt
+      path: ca.crt
+extraVolumeMounts:
+- name: tmp
+  mountPath: /tmp
+- name: valkey-trust
+  mountPath: /app/valkey-trust
+  readOnly: true
+- name: postgresql-trust
+  mountPath: /app/postgresql-trust
+  readOnly: true
+
+# One-shot schema migration, run as a Helm pre-install/pre-upgrade hook using the
+# SCHEMA-OWNER credential so the runtime role keeps DML-only rights. The Job spec
+# and all its defaults live once in the tenantwright-common library chart; only the
+# per-service secret below differs. Disabled here on purpose: an overlay opts in.
+migrationJob:
+  enabled: false
+  schemaSecretName: tenantwright-permissions-db-schema

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <!--
+    The host messaging composition: the one place that may reference both the provider-neutral persistence
+    (Shared.EntityFrameworkCore) and the installed transport providers. Service hosts reference this project and call
+    AddTenantWrightMessagingHost; Messaging:Provider selects exactly one provider at startup.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Shared.EntityFrameworkCore\Shared.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\Shared.EventBus\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\Shared.EventBus.MassTransit\Shared.EventBus.MassTransit.csproj" />
+    <ProjectReference Include="..\Shared.EventBus.Wolverine\Shared.EventBus.Wolverine.csproj" />
+  </ItemGroup>
+</Project>

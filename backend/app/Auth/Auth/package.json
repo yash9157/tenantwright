@@ -1,0 +1,14 @@
+{
+  "name": "tenantwright-auth-tailwind",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./Styles/auth.tailwind.css -o ./wwwroot/css/auth.css --minify",
+    "watch:css": "tailwindcss -i ./Styles/auth.tailwind.css -o ./wwwroot/css/auth.css --watch"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/manrope": "^5.2.8",
+    "@tailwindcss/cli": "4.2.2",
+    "tailwindcss": "4.2.2"
+  }
+}

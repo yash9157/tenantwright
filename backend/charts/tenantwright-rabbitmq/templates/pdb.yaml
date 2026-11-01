@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.cluster.name }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.cluster.name }}
+      app.kubernetes.io/component: rabbitmq

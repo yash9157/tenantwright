@@ -1,0 +1,293 @@
+apiVersion: apps/v1
+kind: Deployment
+{{- $messagingProvider := include "tenantwrightcommon.messagingProvider" . }}
+{{- $messagingEnabled := ne $messagingProvider "None" }}
+{{- if and $messagingEnabled (eq (len .Values.messaging.trust.publicKeys) 0) }}
+{{- fail "messaging.trust.publicKeys must contain the reviewed verification-key catalog when a messaging provider is enabled" }}
+{{- end }}
+metadata:
+  name: {{ include "tenantwrightapp.fullname" . }}
+  labels:
+    {{- include "tenantwrightapp.labels" . | nindent 4 }}
+spec:
+  revisionHistoryLimit: {{ .Values.rollout.revisionHistoryLimit }}
+  progressDeadlineSeconds: {{ .Values.rollout.progressDeadlineSeconds }}
+  minReadySeconds: {{ .Values.rollout.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.rollout.maxUnavailable }}
+      maxSurge: {{ .Values.rollout.maxSurge }}
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "tenantwrightapp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tenantwrightapp.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if and .Values.secretEnv.create .Values.secretEnv.stringData }}
+        checksum/secret-env: {{ include (print $.Template.BasePath "/secret-env.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "tenantwrightapp.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $messagingEnabled }}
+      initContainers:
+        - name: materialize-messaging-trust
+          image: "{{ .Values.messaging.trust.initImage.repository }}:{{ .Values.messaging.trust.initImage.tag }}@{{ required "messaging.trust.initImage.digest is required" .Values.messaging.trust.initImage.digest }}"
+          imagePullPolicy: {{ .Values.messaging.trust.initImage.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              umask 077
+              cp -L "/projected-private/{{ required "messaging.trust.privateKeySecretKey is required" .Values.messaging.trust.privateKeySecretKey }}" /regular/private.pem
+              cp -L "/projected-rabbitmq-ca/{{ required "messaging.rabbitMqTrustedCaSecretKey is required" .Values.messaging.rabbitMqTrustedCaSecretKey }}" /regular/rabbitmq-ca.crt
+              cp -L "/projected-rabbitmq-client-tls/tls.crt" /regular/rabbitmq-client.crt
+              cp -L "/projected-rabbitmq-client-tls/tls.key" /regular/rabbitmq-client.key
+              {{- range $index, $key := .Values.messaging.trust.publicKeys }}
+              cp -L "/projected-public/{{ required "every messaging public key requires secretKey" $key.secretKey }}" "/regular/public-{{ $index }}.pem"
+              {{- end }}
+              # The application container uses a non-root image user.  Files are
+              # readable only by the pod's fsGroup, never world-readable or writable.
+              chmod 0440 /regular/*
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          volumeMounts:
+            - name: messaging-private-key-projection
+              mountPath: /projected-private
+              readOnly: true
+            - name: messaging-public-key-projection
+              mountPath: /projected-public
+              readOnly: true
+            - name: messaging-rabbitmq-ca-projection
+              mountPath: /projected-rabbitmq-ca
+              readOnly: true
+            - name: messaging-rabbitmq-client-tls-projection
+              mountPath: /projected-rabbitmq-client-tls
+              readOnly: true
+            - name: messaging-trust-regular-files
+              mountPath: /regular
+      {{- end }}
+      containers:
+        - name: {{ include "tenantwrightapp.name" . }}
+          image: "{{ .Values.image.repository }}{{- if .Values.image.digest }}@{{ .Values.image.digest }}{{- else }}:{{ .Values.image.tag }}{{- end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "tenantwrightapp.configMapName" . }}
+          {{- if .Values.secretEnv.existingSecret }}
+            - secretRef:
+                name: {{ .Values.secretEnv.existingSecret }}
+          {{- else if and .Values.secretEnv.create .Values.secretEnv.stringData }}
+            - secretRef:
+                name: {{ include "tenantwrightapp.secretEnvName" . }}
+          {{- end }}
+          {{- $hasSecretEnvMap := and .Values.secretEnv.keys (or .Values.secretEnv.existingSecret (and .Values.secretEnv.create .Values.secretEnv.stringData)) }}
+          {{- $hasSecretRefs := .Values.secretRefs }}
+          {{- $hasExtraEnv := .Values.extraEnv }}
+          {{- if or $hasSecretEnvMap $hasSecretRefs $hasExtraEnv $messagingEnabled }}
+          env:
+            {{- if $hasSecretEnvMap }}
+            {{- $secretName := .Values.secretEnv.existingSecret | default (include "tenantwrightapp.secretEnvName" .) }}
+            {{- range $envName, $secretKey := .Values.secretEnv.keys }}
+            - name: {{ $envName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: {{ $secretKey }}
+            {{- end }}
+            {{- end }}
+            {{- range .Values.secretRefs }}
+            - name: {{ .envName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+                  {{- if hasKey . "optional" }}
+                  optional: {{ .optional }}
+                  {{- end }}
+            {{- end }}
+            {{- if $messagingEnabled }}
+            - name: Messaging__Provider
+              value: {{ $messagingProvider | quote }}
+            - name: Messaging__RabbitMq__TrustedCaCertificatePath
+              value: /app/messaging-trust/rabbitmq-ca.crt
+            - name: Messaging__RabbitMq__ClientCertificatePath
+              value: /app/messaging-trust/rabbitmq-client.crt
+            - name: Messaging__RabbitMq__ClientPrivateKeyPath
+              value: /app/messaging-trust/rabbitmq-client.key
+            {{- $rabbitMqSecretName := required "messaging.rabbitMqSecretName is required when a messaging provider is enabled" .Values.messaging.rabbitMqSecretName }}
+            {{- range $envName, $secretKey := dict "Messaging__RabbitMq__HostName" "rabbitmq-host" "Messaging__RabbitMq__Port" "rabbitmq-port" "Messaging__RabbitMq__UserName" "rabbitmq-username" "Messaging__RabbitMq__Password" "rabbitmq-password" "Messaging__RabbitMq__VirtualHost" "rabbitmq-vhost" }}
+            - name: {{ $envName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $rabbitMqSecretName | quote }}
+                  key: {{ $secretKey | quote }}
+            {{- end }}
+            {{- if eq $messagingProvider "MassTransit" }}
+            - name: MT_LICENSE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "messaging.massTransit.licenseSecretName is required when messaging.provider=MassTransit" .Values.messaging.massTransit.licenseSecretName | quote }}
+                  key: {{ required "messaging.massTransit.licenseSecretKey is required when messaging.provider=MassTransit" .Values.messaging.massTransit.licenseSecretKey | quote }}
+            {{- end }}
+            - name: Messaging__Trust__ActiveKeyId
+              value: {{ required "messaging.trust.activeKeyId is required when a messaging provider is enabled" .Values.messaging.trust.activeKeyId | quote }}
+            - name: Messaging__Trust__PrivateKeyPath
+              value: /app/messaging-trust/private.pem
+            {{- range $index, $key := .Values.messaging.trust.publicKeys }}
+            - name: Messaging__Trust__PublicKeys__{{ $index }}__KeyId
+              value: {{ required "every messaging public key requires keyId" $key.keyId | quote }}
+            - name: Messaging__Trust__PublicKeys__{{ $index }}__Actor
+              value: {{ required "every messaging public key requires actor" $key.actor | quote }}
+            - name: Messaging__Trust__PublicKeys__{{ $index }}__PublicKeyPath
+              value: "/app/messaging-trust/public-{{ $index }}.pem"
+            - name: Messaging__Trust__PublicKeys__{{ $index }}__Revoked
+              value: {{ default false $key.revoked | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path | quote }}
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.ingress.host | quote }}
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path | quote }}
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.ingress.host | quote }}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path | quote }}
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.ingress.host | quote }}
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if $messagingEnabled }}
+          {{- if not .Values.extraVolumeMounts }}
+          volumeMounts:
+          {{- end }}
+            - name: messaging-trust-regular-files
+              mountPath: /app/messaging-trust
+              readOnly: true
+          {{- end }}
+      {{- if or $messagingEnabled .Values.extraVolumes }}
+      volumes:
+        {{- if $messagingEnabled }}
+        - name: messaging-private-key-projection
+          secret:
+            secretName: {{ required "messaging.trust.privateKeySecretName is required" .Values.messaging.trust.privateKeySecretName | quote }}
+        - name: messaging-public-key-projection
+          secret:
+            secretName: {{ required "messaging.trust.publicKeysSecretName is required" .Values.messaging.trust.publicKeysSecretName | quote }}
+        - name: messaging-rabbitmq-ca-projection
+          secret:
+            secretName: {{ required "messaging.rabbitMqTrustedCaSecretName is required" .Values.messaging.rabbitMqTrustedCaSecretName | quote }}
+        - name: messaging-rabbitmq-client-tls-projection
+          secret:
+            secretName: {{ required "messaging.rabbitMqClientTlsSecretName is required" .Values.messaging.rabbitMqClientTlsSecretName | quote }}
+        - name: messaging-trust-regular-files
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.topologySpread.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: {{ .Values.topologySpread.maxSkew }}
+          topologyKey: {{ .Values.topologySpread.topologyKey | quote }}
+          whenUnsatisfiable: {{ .Values.topologySpread.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+              {{- include "tenantwrightapp.selectorLabels" . | nindent 14 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

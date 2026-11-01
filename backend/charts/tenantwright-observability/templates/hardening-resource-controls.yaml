@@ -1,0 +1,27 @@
+{{- if .Values.tenantwrightObservability.hardening.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenantwright-observability-quota
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+spec:
+  hard:
+{{ toYaml .Values.tenantwrightObservability.hardening.resourceQuota.hard | indent 4 }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenantwright-observability-defaults
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+{{ toYaml .Values.tenantwrightObservability.hardening.limitRange.defaultRequest | indent 8 }}
+      default:
+{{ toYaml .Values.tenantwrightObservability.hardening.limitRange.default | indent 8 }}
+{{- end }}

@@ -1,0 +1,54 @@
+@page
+@using Auth.Pages.Account.Partials
+@model IndexModel
+@{
+    ViewData["Title"] = "Secure Session";
+    Layout = "_AuthShell";
+    ViewData["AuthHideBrandPanel"] = true;
+    ViewData["AuthMaxWidth"] = "max-w-2xl";
+
+}
+
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <section class="rounded-3xl bg-surface-high p-8 shadow-card ring-1 ring-outline/50 sm:p-10">
+        <div class="flex flex-col items-center text-center">
+            <div class="flex size-16 items-center justify-center rounded-2xl bg-success-soft text-success">
+                <span class="material-symbols-outlined text-[34px]" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+            </div>
+            <p class="mt-5 text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-soft">Signed in</p>
+            <h1 class="mt-2 font-headline text-2xl font-bold tracking-tight text-on-surface sm:text-3xl">Secure session established</h1>
+            <p class="mx-auto mt-3 max-w-md text-sm leading-relaxed text-on-surface-soft">Authentication succeeded. Return to the application that sent you here, or sign out when you are finished.</p>
+        </div>
+
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <form method="post" action="@Auth.Routing.AuthPageRoutes.Logout" data-auth-form="true">
+                @Html.AntiForgeryToken()
+                <button type="submit" data-auth-loading-text="Signing out..." class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-surface-low px-5 py-3 text-sm font-semibold text-on-surface ring-1 ring-inset ring-outline transition-colors hover:bg-surface-strong sm:w-auto">
+                    <span class="material-symbols-outlined text-[18px]">logout</span>
+                    <span>Log out</span>
+                </button>
+            </form>
+            <a class="inline-flex w-full items-center justify-center gap-2 rounded-xl brand-gradient px-5 py-3 font-headline text-sm font-bold text-on-primary shadow-soft transition-all hover:opacity-95 active:scale-[0.98] sm:w-auto" href="/Privacy">
+                <span>Review privacy guidance</span>
+                <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+            </a>
+        </div>
+    </section>
+}
+else
+{
+    <section class="rounded-3xl bg-surface-high p-8 text-center shadow-card ring-1 ring-outline/50 sm:p-10">
+        <div class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-warning-soft text-warning">
+            <span class="material-symbols-outlined text-[34px]">lock</span>
+        </div>
+        <h1 class="mt-6 font-headline text-2xl font-bold tracking-tight text-on-surface">No active session</h1>
+        <p class="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-on-surface-soft">Sign in to continue to the authentication workspace.</p>
+        <div class="mt-8">
+            <a class="inline-flex w-full items-center justify-center gap-2 rounded-xl brand-gradient px-4 py-3.5 font-headline text-sm font-bold text-on-primary shadow-soft transition-all hover:opacity-95 active:scale-[0.98]" href="@Auth.Routing.AuthPageRoutes.SignIn">
+                <span>Go to sign in</span>
+                <span class="material-symbols-outlined text-[18px]">login</span>
+            </a>
+        </div>
+    </section>
+}

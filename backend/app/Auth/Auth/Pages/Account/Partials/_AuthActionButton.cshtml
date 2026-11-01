@@ -1,0 +1,34 @@
+@using Auth.Pages.Account.Partials
+@model AuthActionButtonModel
+@{
+    var variantClass = Model.IsPrimary ? "btn-primary" : "btn-secondary";
+
+    // Map legacy Material-symbol names to the inline SVG icon set.
+    var iconName = Model.IconSymbol switch
+    {
+        "arrow_forward" => "arrow-right",
+        "arrow_back" or "chevron_left" => "arrow-left",
+        "login" => "arrow-right",
+        "lock_reset" or "key" or "vpn_key" => "key",
+        "mail" or "forward_to_inbox" or "mark_email_unread" => "mail",
+        "check_circle" or "mark_email_read" or "verified_user" => "check-circle",
+        "logout" => "arrow-right",
+        "refresh" => "arrow-right",
+        _ => Model.IconSymbol
+    };
+}
+
+<button
+    type="@Model.Type"
+    class="btn @variantClass group @Model.CssClass"
+    data-auth-loading-text="@Model.LoadingText">
+    <span>@Model.Text</span>
+    @if (!string.IsNullOrWhiteSpace(iconName))
+    {
+        <span class="transition-transform duration-200 group-hover:translate-x-1">@AuthIcons.Get(iconName, "size-[18px]", "2")</span>
+    }
+    else if (!string.IsNullOrWhiteSpace(Model.IconClass))
+    {
+        <i class="@Model.IconClass" aria-hidden="true"></i>
+    }
+</button>

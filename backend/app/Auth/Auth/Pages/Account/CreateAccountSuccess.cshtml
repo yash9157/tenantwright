@@ -1,0 +1,24 @@
+@page
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.CreateAccountSuccessModel
+@{
+    ViewData["Title"] = "Account created";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+    var description = Model.State.Flow == "invite"
+        ? $"We've sent an activation link to {Model.State.Email}. Verify your account to access your workspace."
+        : $"Your workspace is ready. We've sent an activation link to {Model.State.Email}.";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8 text-center">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "check-circle", Tone = "success", Heading = "Account created", Description = description })" />
+
+        <div class="mt-6 space-y-3">
+            <a class="btn btn-primary" href="@AuthPageRoutes.SignIn">Back to sign in</a>
+            <partial name="Partials/_AuthResend" model="@(new AuthResendModel { IdleLabel = "Resend activation email", Href = AuthPageRoutes.EmailVerificationResend, Key = "auth.resend.activation" })" />
+        </div>
+    </div>
+</section>

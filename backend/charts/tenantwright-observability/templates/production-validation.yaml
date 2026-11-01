@@ -1,0 +1,95 @@
+{{- if .Values.production.enabled }}
+{{- $errors := list }}
+{{- if or (eq .Values.production.environment "development") (eq .Values.production.environment "template") }}
+{{- $errors = append $errors "production.environment must identify a real non-development environment" }}
+{{- end }}
+{{- if .Values.tempo.enabled }}
+{{- $errors = append $errors "the monolithic Tempo chart must be disabled in production" }}
+{{- end }}
+{{- if not (index .Values "tempo-distributed" "enabled") }}
+{{- $errors = append $errors "tempo-distributed must be enabled in production" }}
+{{- end }}
+{{- if ne .Values.loki.deploymentMode "Distributed" }}
+{{- $errors = append $errors "Loki must use Distributed microservices mode in production" }}
+{{- end }}
+{{- if ne .Values.loki.loki.storage.type "s3" }}
+{{- $errors = append $errors "Loki must use S3-compatible object storage in production" }}
+{{- end }}
+{{- if ne (index .Values "tempo-distributed" "storage" "trace" "backend") "s3" }}
+{{- $errors = append $errors "Tempo must use S3-compatible object storage in production" }}
+{{- end }}
+{{- if lt (int (index .Values "tempo-distributed" "ingester" "replicas")) 3 }}
+{{- $errors = append $errors "Tempo requires at least three ingesters" }}
+{{- end }}
+{{- if lt (int .Values.loki.distributor.replicas) 3 }}
+{{- $errors = append $errors "Loki requires at least three distributors" }}
+{{- end }}
+{{- if lt (int .Values.loki.ingester.replicas) 3 }}
+{{- $errors = append $errors "Loki requires at least three ingesters" }}
+{{- end }}
+{{- if lt (int .Values.loki.querier.replicas) 3 }}
+{{- $errors = append $errors "Loki requires at least three queriers" }}
+{{- end }}
+{{- if lt (int (index .Values "kube-prometheus-stack" "prometheus" "prometheusSpec" "replicas")) 2 }}
+{{- $errors = append $errors "Prometheus requires at least two replicas" }}
+{{- end }}
+{{- if lt (int (index .Values "kube-prometheus-stack" "alertmanager" "alertmanagerSpec" "replicas")) 3 }}
+{{- $errors = append $errors "Alertmanager requires at least three replicas" }}
+{{- end }}
+{{- if lt (int (index .Values "kube-prometheus-stack" "grafana" "replicas")) 2 }}
+{{- $errors = append $errors "Grafana requires at least two replicas backed by external PostgreSQL" }}
+{{- end }}
+{{- if ne (index .Values "kube-prometheus-stack" "grafana" "ingress" "ingressClassName") .Values.production.grafana.ingressClassName }}
+{{- $errors = append $errors "Grafana must use the production private ingress class" }}
+{{- end }}
+{{- if ne (index .Values "kube-prometheus-stack" "grafana" "grafana.ini" "database" "ssl_mode") "verify-full" }}
+{{- $errors = append $errors "Grafana PostgreSQL must use verify-full TLS" }}
+{{- end }}
+{{- if (index .Values "kube-prometheus-stack" "grafana" "persistence" "enabled") }}
+{{- $errors = append $errors "Grafana filesystem persistence must be disabled when replicas are greater than one" }}
+{{- end }}
+{{- if lt (int (index .Values "opentelemetry-collector" "replicaCount")) 3 }}
+{{- $errors = append $errors "the OpenTelemetry Collector requires at least three replicas" }}
+{{- end }}
+{{- if lt (int (index .Values "prometheus-blackbox-exporter" "replicas")) 2 }}
+{{- $errors = append $errors "the Blackbox Exporter requires at least two replicas" }}
+{{- end }}
+{{- range $name, $cidrs := .Values.production.network }}
+{{- if hasSuffix "Cidrs" $name }}
+{{- if eq (len $cidrs) 0 }}
+{{- $errors = append $errors (printf "production.network.%s must not be empty" $name) }}
+{{- end }}
+{{- range $cidr := $cidrs }}
+{{- if or (eq $cidr "0.0.0.0/0") (eq $cidr "::/0") }}
+{{- $errors = append $errors (printf "production.network.%s must not allow the entire Internet" $name) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $grafana := index .Values "kube-prometheus-stack" "grafana" }}
+{{- range $environmentName, $secretKey := dict
+      "GF_DATABASE_HOST" "host"
+      "GF_DATABASE_NAME" "name"
+      "GF_DATABASE_USER" "user"
+      "GF_DATABASE_PASSWORD" "password"
+      "GF_AUTH_GENERIC_OAUTH_CLIENT_ID" "client-id"
+      "GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET" "client-secret" }}
+{{- $expectedSecret := ternary "tenantwright-grafana-oidc" "tenantwright-grafana-database" (hasPrefix "GF_AUTH_" $environmentName) }}
+{{- $reference := index $grafana.envValueFrom $environmentName "secretKeyRef" }}
+{{- if or (ne $reference.name $expectedSecret) (ne $reference.key $secretKey) }}
+{{- $errors = append $errors (printf "Grafana %s must come from %s/%s" $environmentName $expectedSecret $secretKey) }}
+{{- end }}
+{{- end }}
+{{- if ne .Values.production.remoteWrite.secretName "tenantwright-prometheus-remote-write" }}
+{{- $errors = append $errors "Prometheus remote-write credentials must use tenantwright-prometheus-remote-write" }}
+{{- end }}
+{{- if not (hasPrefix "https://" .Values.production.remoteWrite.url) }}
+{{- $errors = append $errors "Prometheus remote-write must use HTTPS" }}
+{{- end }}
+{{- if ne .Values.tenantwrightObservability.alerting.heartbeatSecretName "tenantwright-observability-heartbeat" }}
+{{- $errors = append $errors "Watchdog heartbeat must use tenantwright-observability-heartbeat" }}
+{{- end }}
+{{- if gt (len $errors) 0 }}
+{{- fail (printf "production observability validation failed:\n- %s" (join "\n- " $errors)) }}
+{{- end }}
+{{- end }}

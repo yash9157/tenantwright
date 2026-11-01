@@ -1,0 +1,14 @@
+image:
+  repository: yash9157/tenantwright-workflows
+  tag: mtls-temporal-20260801-1
+  digest: sha256:7ea37583c4cea7eec20ad3b676394cf3c7be90f6e1541c7eb7215b7ebce8a257
+  pullPolicy: IfNotPresent
+env:
+  EfCore__AutoMigrate: 'false'
+  Messaging__ServiceName: tenantwright-workflows
+  Messaging__ProducerPrincipal: tenantwright-workflows
+  Messaging__RabbitMq__UserName: tenantwright-workflows
+  Temporal__WorkerEnabled: 'true'
+networkPolicy: {}
+migrationJob:
+  enabled: true

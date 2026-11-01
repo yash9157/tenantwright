@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unit of Work"
+  short_description: "Review UoW, DbContext, and transaction ownership"
+  default_prompt: "Use $tenantwright-unit-of-work to design or review repository UoW, DbContext provider, transaction, rollback, and background database boundaries."

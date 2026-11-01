@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>af0ab34b-4ffc-4b74-9043-09f1740772ef</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>..\..</DockerfileContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" />
+    <PackageReference Include="OpenIddict.Validation.AspNetCore" />
+    <PackageReference Include="OpenIddict.Validation.SystemNetHttp" />
+    <PackageReference Include="Yarp.ReverseProxy" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\orchestration\TenantWright.ServiceDefaults\TenantWright.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.AspNetCore.ProblemDetails\Shared.AspNetCore.ProblemDetails.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.Modularity\Shared.Modularity.csproj" />
+  </ItemGroup>
+
+</Project>

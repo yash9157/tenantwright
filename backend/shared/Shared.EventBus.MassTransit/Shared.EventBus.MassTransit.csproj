@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <!--
+    The MassTransit 9 / RabbitMQ transport provider: the only project allowed to reference a MassTransit package.
+    It adapts the provider-neutral Shared.EventBus core and is selected by Shared.EventBus.Hosting when
+    Messaging:Provider=MassTransit.
+  -->
+  <ItemGroup>
+    <PackageReference Include="MassTransit" />
+    <PackageReference Include="MassTransit.RabbitMQ" />
+    <PackageReference Include="RabbitMQ.Client" />
+    <ProjectReference Include="..\Shared.EventBus\Shared.EventBus.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,28 @@
+production:
+  enabled: true
+  environment: production-ci
+  databaseHighAvailabilityAcknowledged: true
+  databaseRestoreDrillReference: CI-RESTORE-DRILL-REFERENCE
+
+temporal:
+  server:
+    replicaCount: 3
+    config:
+      persistence:
+        datastores:
+          default:
+            sql:
+              connectAddr: postgresql.production.internal:5432
+              tls:
+                serverName: postgresql.production.internal
+          visibility:
+            sql:
+              connectAddr: postgresql.production.internal:5432
+              tls:
+                serverName: postgresql.production.internal
+
+networkPolicy:
+  postgresqlCidrs:
+    - 10.20.30.40/32
+  httpsCidrs:
+    - 10.20.40.0/24

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Background Processing"
+  short_description: "Jobs, workflows, ownership, and safe recovery"
+  default_prompt: "Use $tenantwright-background-processing to implement or review Hangfire jobs, Quartz tasks, Temporal workflows, or hosted workers."

@@ -1,0 +1,385 @@
+{{- if .Values.tenantwrightObservability.alerts.enabled }}
+{{- $appNs := default "tenantwright" .Values.tenantwrightObservability.alerts.targetNamespace }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tenantwright-observability-rules
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    release: {{ .Release.Name | quote }}
+spec:
+  groups:
+    - name: tenantwright.slo.recording
+      rules:
+        - record: tenantwright:http_requests:rate5m
+          expr: |
+            sum by (service_name) (
+              rate(http_server_request_duration_seconds_count{service_name!=""}[5m])
+            )
+        - record: tenantwright:http_requests:errors:rate5m
+          expr: |
+            sum by (service_name) (
+              rate(http_server_request_duration_seconds_count{service_name!="",http_response_status_code=~"5.."}[5m])
+            )
+        - record: tenantwright:slo:availability:ratio5m
+          expr: |
+            1 - (
+              tenantwright:http_requests:errors:rate5m
+              /
+              clamp_min(tenantwright:http_requests:rate5m, 0.001)
+            )
+        - record: tenantwright:http_latency:p95_seconds
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, service_name) (
+                rate(http_server_request_duration_seconds_bucket{service_name!=""}[5m])
+              )
+            )
+    - name: tenantwright.slo.alerts
+      rules:
+        - alert: TenantWrightHigh5xxRate
+          expr: |
+            (
+              tenantwright:http_requests:errors:rate5m
+              /
+              clamp_min(tenantwright:http_requests:rate5m, 0.001)
+            ) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High 5xx rate for a service"
+            description: "5xx error ratio exceeded 5% for 10m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighthigh5xxrate"
+        - alert: TenantWrightCritical5xxRate
+          expr: |
+            (
+              tenantwright:http_requests:errors:rate5m
+              /
+              clamp_min(tenantwright:http_requests:rate5m, 0.001)
+            ) > 0.15
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Critical 5xx rate for a service"
+            description: "5xx error ratio exceeded 15% for 5m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightcritical5xxrate"
+        - alert: TenantWrightHighLatencyP95
+          expr: tenantwright:http_latency:p95_seconds > 1.5
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High p95 latency for a service"
+            description: "p95 latency exceeded 1.5s for 10m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighthighlatencyp95"
+        - alert: TenantWrightCriticalLatencyP95
+          expr: tenantwright:http_latency:p95_seconds > 3
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Critical p95 latency for a service"
+            description: "p95 latency exceeded 3s for 5m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightcriticallatencyp95"
+        - alert: TenantWrightErrorBudgetBurn
+          expr: |
+            (1 - tenantwright:slo:availability:ratio5m) / 0.005 > 2
+          for: 15m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Error budget burn is high"
+            description: "Availability is burning faster than 2x the 99.5% SLO budget."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighterrorbudgetburn"
+    - name: tenantwright.platform.alerts
+      rules:
+        - alert: TenantWrightPodCrashLooping
+          expr: |
+            max by (namespace, pod, container) (
+              kube_pod_container_status_waiting_reason{namespace="{{ $appNs }}",reason="CrashLoopBackOff"}
+            ) > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Pod is crash-looping"
+            description: "One or more containers are in CrashLoopBackOff."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightpodcrashlooping"
+        - alert: TenantWrightPodRestartsHigh
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="{{ $appNs }}"}[15m]) > 3
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High pod restart rate"
+            description: "Pod restarted more than 3 times in 15 minutes."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightpodrestartshigh"
+        - alert: TenantWrightPodHighCpu
+          expr: |
+            sum by (pod) (
+              rate(container_cpu_usage_seconds_total{namespace="{{ $appNs }}",container!="",image!=""}[5m])
+            ) > 1
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High CPU usage on one or more pods"
+            description: "Pod CPU usage sustained above 1 core."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightpodhighcpu"
+        - alert: TenantWrightPodHighMemory
+          expr: |
+            sum by (pod) (
+              container_memory_working_set_bytes{namespace="{{ $appNs }}",container!="",image!=""}
+            ) > 1.5e+09
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High memory usage on one or more pods"
+            description: "Pod working set memory sustained above 1.5GiB."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightpodhighmemory"
+        - alert: TenantWrightServiceDown
+          expr: |
+            max by (deployment) (
+              kube_deployment_status_replicas_unavailable{
+                namespace="{{ $appNs }}",
+                deployment=~{{ .Values.tenantwrightObservability.alerts.workloadDeploymentPattern | quote }}
+              }
+            ) > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "TenantWright workload deployment is unavailable"
+            description: "A TenantWright workload Deployment has unavailable replicas for 5m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightservicedown"
+        - alert: TenantWrightRabbitMqQueueBacklog
+          expr: |
+            sum(rabbitmq_queue_messages_ready{queue!~"^amq\\..*"}) > 1000
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "RabbitMQ queue backlog is high"
+            description: "Ready message backlog exceeded 1000 for 10m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightrabbitmqqueuebacklog"
+        - alert: TenantWrightAuditLogsHangfireUnavailable
+          expr: auditlogs_hangfire_server_healthy == 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "AuditLogs background workers are unavailable"
+            description: "No current AuditLogs Hangfire server owns all configured queues."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightauditlogsoperationalhealth"
+        - alert: TenantWrightAuditLogsSealLagHigh
+          expr: auditlogs_seal_lag_rows > 10000
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "AuditLogs seal chain is behind"
+            description: "More than 10000 eligible audit rows are not covered by the seal chain."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightauditlogsoperationalhealth"
+        - alert: TenantWrightAuditLogsArchiveBlobUnavailable
+          expr: auditlogs_archive_blob_healthy == 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "AuditLogs archive storage is unavailable"
+            description: "The bounded archive storage write/read/delete canary is failing."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightauditlogsoperationalhealth"
+        - alert: TenantWrightSyntheticProbeFailing
+          expr: |
+            probe_success{job=~"tenantwright-synthetic-.*"} == 0
+          for: 3m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Synthetic check failed"
+            description: "At least one synthetic endpoint probe has been failing for 3m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightsyntheticprobefailing"
+    - name: tenantwright.observability.pipeline
+      rules:
+        - alert: TenantWrightPrometheusRemoteWriteFailing
+          expr: |
+            sum(rate(prometheus_remote_storage_samples_failed_total[5m])) > 0
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Prometheus remote write is dropping samples"
+            description: "The durable remote-write copy has failed samples for 10m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightobservabilitypipeline"
+        - alert: TenantWrightTelemetryExporterFailures
+          expr: |
+            (
+              sum(rate(otelcol_exporter_send_failed_spans[5m]))
+              +
+              sum(rate(otelcol_exporter_send_failed_metric_points[5m]))
+              +
+              sum(rate(otelcol_exporter_send_failed_log_records[5m]))
+            ) > 0
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "OpenTelemetry Collector exports are failing"
+            description: "One or more telemetry signal exporters have failed continuously for 10m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightobservabilitypipeline"
+        - alert: TenantWrightObservabilityVolumeLow
+          expr: |
+            min by (persistentvolumeclaim) (
+              kubelet_volume_stats_available_bytes{namespace="{{ .Release.Namespace }}"}
+              /
+              clamp_min(kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"}, 1)
+            ) < 0.15
+          for: 15m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Observability persistent volume is running low"
+            description: "An observability PVC has less than 15% free capacity for 15m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightobservabilitypipeline"
+    - name: tenantwright.notifications.alerts
+      rules:
+        - alert: TenantWrightNotificationDeliveryNeedsReview
+          expr: |
+            sum(increase(notifications_delivery_needs_review_total[5m])) > 0
+          for: 1m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Notification delivery outcome requires review"
+            description: "At least one provider outcome became ambiguous and automatic resend was stopped."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightnotificationdeliveryneedsreview"
+        - alert: TenantWrightNotificationDeliveryDeadLettered
+          expr: |
+            sum(increase(notifications_delivery_dead_lettered_total[15m])) > 0
+          for: 1m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Notification delivery was dead-lettered"
+            description: "At least one notification exhausted retries or contained an invalid delivery payload."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightnotificationdeliverydeadlettered"
+    - name: tenantwright.loginrisk.alerts
+      rules:
+        - record: tenantwright:login_risk:blocked_ratio5m
+          expr: |
+            sum(rate(identity_login_blocked_total[5m]))
+            /
+            clamp_min(sum(rate(identity_login_risk_decisions_total[5m])), 0.001)
+        - alert: TenantWrightLoginRiskBlockedSpike
+          expr: |
+            tenantwright:login_risk:blocked_ratio5m > 0.20
+          for: 10m
+          labels:
+            severity: warning
+            team: security
+          annotations:
+            summary: "Blocked login ratio is elevated"
+            description: "Blocked login ratio exceeded 20% for 10m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightloginriskblockedspike"
+        - alert: TenantWrightLoginRiskFalsePositiveSpike
+          expr: |
+            increase(identity_login_false_positive_total[30m]) > 5
+          for: 5m
+          labels:
+            severity: warning
+            team: security
+          annotations:
+            summary: "False-positive marks are spiking"
+            description: "More than 5 false positives were marked in the last 30 minutes."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrightloginriskfalsepositivespike"
+{{- if .Values.tenantwrightObservability.slos.enabled }}
+    - name: tenantwright.slo.per-service
+      rules:
+{{- $shortWindow := default "5m" .Values.tenantwrightObservability.slos.shortWindow }}
+{{- $longWindow := default "1h" .Values.tenantwrightObservability.slos.longWindow }}
+{{- range $svc := .Values.tenantwrightObservability.slos.services }}
+{{- $svcName := default $svc.name $svc.match }}
+{{- $svcMatch := default $svc.name $svc.match }}
+{{- $svcAlert := ($svc.name | replace " " "" | replace "-" "" | replace "_" "") }}
+        - alert: TenantWright{{ $svcAlert }}ErrorBudgetBurnCritical
+          expr: |
+            (
+              (
+                sum(rate(http_server_request_duration_seconds_count{service_name=~"{{ $svcMatch }}",http_response_status_code=~"5.."}[{{ $shortWindow }}]))
+                /
+                clamp_min(sum(rate(http_server_request_duration_seconds_count{service_name=~"{{ $svcMatch }}"}[{{ $shortWindow }}])), 0.001)
+              ) / {{ default "0.001" $svc.errorBudgetRatio }}
+            ) > 5
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+            service_name: {{ $svcName | quote }}
+          annotations:
+            summary: "{{ $svcName }} critical error-budget burn"
+            description: "{{ $svcName }} is burning error budget at >5x in the short window."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighterrorbudgetburn"
+        - alert: TenantWright{{ $svcAlert }}ErrorBudgetBurnWarning
+          expr: |
+            (
+              (
+                sum(rate(http_server_request_duration_seconds_count{service_name=~"{{ $svcMatch }}",http_response_status_code=~"5.."}[{{ $longWindow }}]))
+                /
+                clamp_min(sum(rate(http_server_request_duration_seconds_count{service_name=~"{{ $svcMatch }}"}[{{ $longWindow }}])), 0.001)
+              ) / {{ default "0.001" $svc.errorBudgetRatio }}
+            ) > 2
+          for: 20m
+          labels:
+            severity: warning
+            team: platform
+            service_name: {{ $svcName | quote }}
+          annotations:
+            summary: "{{ $svcName }} warning error-budget burn"
+            description: "{{ $svcName }} is burning error budget at >2x in the long window."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighterrorbudgetburn"
+        - alert: TenantWright{{ $svcAlert }}LatencyP95
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le) (
+                rate(http_server_request_duration_seconds_bucket{service_name=~"{{ $svcMatch }}"}[5m])
+              )
+            ) > {{ default "1.00" $svc.p95LatencySeconds }}
+          for: 15m
+          labels:
+            severity: warning
+            team: platform
+            service_name: {{ $svcName | quote }}
+          annotations:
+            summary: "{{ $svcName }} p95 latency above SLO target"
+            description: "{{ $svcName }} p95 latency is above configured target for 15m."
+            runbook_url: "docs/observability-oncall-runbook.md#tenantwrighthighlatencyp95"
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,88 @@
+# Copy to an operator-owned, ignored platform/temporal.values.yaml file.
+# Replace every angle-bracket token. Never place passwords, API keys, private
+# keys, client secrets, or connection URIs in this file.
+production:
+  enabled: true
+  environment: production
+  databaseHighAvailabilityAcknowledged: true
+  databaseRestoreDrillReference: <approved-restore-drill-record>
+
+temporal:
+  server:
+    replicaCount: 3
+    config:
+      authorization:
+        jwtKeyProvider:
+          keySourceURIs:
+            - https://<production-auth-host>/.well-known/jwks.json
+      persistence:
+        datastores:
+          default:
+            sql:
+              databaseName: temporal
+              connectAddr: <postgresql-private-host>:<postgresql-port>
+              user: temporal_runtime
+              existingSecret: tenantwright-temporal-persistence
+              tls:
+                serverName: <postgresql-certificate-hostname>
+          visibility:
+            sql:
+              databaseName: temporal_visibility
+              connectAddr: <postgresql-private-host>:<postgresql-port>
+              user: temporal_visibility_runtime
+              existingSecret: tenantwright-temporal-visibility
+              tls:
+                serverName: <postgresql-certificate-hostname>
+  web:
+    additionalEnv:
+      - name: TEMPORAL_DEFAULT_NAMESPACE
+        value: tenantwright-production
+      - name: TEMPORAL_TLS_CA
+        value: /etc/temporal/tls/web-client/ca.crt
+      - name: TEMPORAL_TLS_CERT
+        value: /etc/temporal/tls/web-client/tls.crt
+      - name: TEMPORAL_TLS_KEY
+        value: /etc/temporal/tls/web-client/tls.key
+      - name: TEMPORAL_TLS_ENABLE_HOST_VERIFICATION
+        value: "true"
+      - name: TEMPORAL_TLS_SERVER_NAME
+        value: tenantwright-temporal-frontend
+      - name: TEMPORAL_AUTH_ENABLED
+        value: "true"
+      - name: TEMPORAL_AUTH_TYPE
+        value: oidc
+      - name: TEMPORAL_AUTH_PROVIDER_URL
+        value: https://<production-auth-host>/.well-known/openid-configuration
+      - name: TEMPORAL_AUTH_ISSUER_URL
+        value: https://<production-auth-host>
+      - name: TEMPORAL_AUTH_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: tenantwright-temporal-web-oidc
+            key: client-id
+      - name: TEMPORAL_AUTH_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: tenantwright-temporal-web-oidc
+            key: client-secret
+      - name: TEMPORAL_AUTH_CALLBACK_URL
+        value: https://<production-temporal-ui-host>/auth/sso/callback
+      - name: TEMPORAL_AUTH_SCOPES
+        value: openid,profile,email,temporal
+      - name: TEMPORAL_FORWARD_HEADERS
+        value: Authorization
+
+schemaManagement:
+  persistence:
+    user: temporal_schema_owner
+    existingSecret: tenantwright-temporal-persistence-schema
+  visibility:
+    user: temporal_visibility_schema_owner
+    existingSecret: tenantwright-temporal-visibility-schema
+
+networkPolicy:
+  postgresqlPort: <postgresql-port>
+  postgresqlCidrs:
+    - <reviewed-postgresql-egress-cidr>
+  httpsCidrs:
+    - <reviewed-auth-egress-cidr>

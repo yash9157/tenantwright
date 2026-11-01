@@ -1,0 +1,181 @@
+{{- $serverImage := .Values.temporal.server.image }}
+{{- $adminImage := .Values.temporal.admintools.image }}
+{{- $webImage := .Values.temporal.web.image }}
+{{- $defaultSql := .Values.temporal.server.config.persistence.datastores.default.sql }}
+{{- $visibilitySql := .Values.temporal.server.config.persistence.datastores.visibility.sql }}
+{{- $production := .Values.production }}
+{{- range $name, $image := dict "server" $serverImage "admin-tools" $adminImage "web" $webImage "namespace-bootstrap" .Values.namespaceBootstrap.image }}
+  {{- if not (regexMatch "^sha256:[0-9a-f]{64}$" ($image.digest | default "")) }}
+    {{- fail (printf "Temporal %s image requires an exact sha256 digest." $name) }}
+  {{- end }}
+{{- end }}
+{{- if or $defaultSql.createDatabase $visibilitySql.createDatabase }}
+  {{- fail "Temporal databases are externally owned; createDatabase must remain false." }}
+{{- end }}
+{{- if or $defaultSql.manageSchema $visibilitySql.manageSchema }}
+  {{- fail "The TenantWright schema-management hook owns schema upgrades; subchart manageSchema must remain false." }}
+{{- end }}
+{{- if or (not $defaultSql.tls.enabled) (not $visibilitySql.tls.enabled) }}
+  {{- fail "Temporal PostgreSQL persistence and visibility connections require TLS." }}
+{{- end }}
+{{- if or (not $defaultSql.tls.enableHostVerification) (not $visibilitySql.tls.enableHostVerification) }}
+  {{- fail "Temporal PostgreSQL TLS hostname verification must remain enabled." }}
+{{- end }}
+{{- if eq $defaultSql.databaseName $visibilitySql.databaseName }}
+  {{- fail "Temporal persistence and visibility must use separate databases." }}
+{{- end }}
+{{- if eq $defaultSql.user $visibilitySql.user }}
+  {{- fail "Temporal persistence and visibility runtime users must be distinct." }}
+{{- end }}
+{{- if eq $defaultSql.existingSecret $visibilitySql.existingSecret }}
+  {{- fail "Temporal persistence and visibility runtime credentials must use distinct Secrets." }}
+{{- end }}
+{{- if eq .Values.schemaManagement.persistence.user $defaultSql.user }}
+  {{- fail "Temporal persistence schema-owner and runtime users must be distinct." }}
+{{- end }}
+{{- if eq .Values.schemaManagement.visibility.user $visibilitySql.user }}
+  {{- fail "Temporal visibility schema-owner and runtime users must be distinct." }}
+{{- end }}
+{{- if or (not .Values.schemaManagement.enabled) (not .Values.namespaceBootstrap.enabled) }}
+  {{- fail "Temporal schema management and namespace bootstrap must be enabled." }}
+{{- end }}
+{{- if lt (int .Values.temporal.server.replicaCount) 1 }}
+  {{- fail "Temporal server services require at least one replica." }}
+{{- end }}
+{{- if and .Values.temporal.web.enabled (lt (int .Values.temporal.web.replicaCount) 1) }}
+  {{- fail "Temporal Web UI requires at least one replica." }}
+{{- end }}
+{{- if or .Values.temporal.web.ingress.enabled (ne .Values.temporal.web.service.type "ClusterIP") }}
+  {{- fail "Temporal Web UI must remain private with ClusterIP service and no chart-managed Ingress." }}
+{{- end }}
+{{- if not .Values.networkPolicy.enabled }}
+  {{- fail "Temporal NetworkPolicy cannot be disabled." }}
+{{- end }}
+{{- if lt (len .Values.networkPolicy.postgresqlCidrs) 1 }}
+  {{- fail "At least one environment-owned PostgreSQL egress CIDR is required." }}
+{{- end }}
+{{- if $production.enabled }}
+  {{- if or (eq $production.environment "template") (eq $production.environment "development") }}
+    {{- fail "Production Temporal requires an explicit non-development environment name." }}
+  {{- end }}
+  {{- if not $production.databaseHighAvailabilityAcknowledged }}
+    {{- fail "Production Temporal requires acknowledged PostgreSQL high availability." }}
+  {{- end }}
+  {{- if or (empty $production.databaseRestoreDrillReference) (regexMatch "(?i)change[_-]?me|placeholder|todo" $production.databaseRestoreDrillReference) }}
+    {{- fail "Production Temporal requires a real database restore-drill reference." }}
+  {{- end }}
+  {{- if lt (int .Values.temporal.server.replicaCount) 3 }}
+    {{- fail "Production Temporal requires at least three replicas for every server service." }}
+  {{- end }}
+  {{- range $componentName, $component := dict
+      "frontend" .Values.temporal.server.frontend
+      "history" .Values.temporal.server.history
+      "matching" .Values.temporal.server.matching
+      "worker" .Values.temporal.server.worker }}
+    {{- if lt (int $component.podDisruptionBudget.minAvailable) 2 }}
+      {{- fail (printf "Production Temporal %s requires podDisruptionBudget.minAvailable of at least two." $componentName) }}
+    {{- end }}
+  {{- end }}
+  {{- if or (not .Values.temporal.web.enabled) (lt (int .Values.temporal.web.replicaCount) 1) }}
+    {{- fail "Production Temporal requires the private authenticated Web UI with at least one replica." }}
+  {{- end }}
+  {{- if lt (len .Values.networkPolicy.httpsCidrs) 1 }}
+    {{- fail "Production Temporal authorization requires at least one reviewed HTTPS egress CIDR." }}
+  {{- end }}
+  {{- if or
+      (empty .Values.temporal.server.config.authorization.authorizer)
+      (empty .Values.temporal.server.config.authorization.claimMapper)
+      (eq .Values.temporal.server.config.authorization.authorizer "noop")
+      (eq .Values.temporal.server.config.authorization.claimMapper "noop") }}
+    {{- fail "Production Temporal requires non-empty governed authorization and claim mapping." }}
+  {{- end }}
+  {{- range $label, $value := dict "persistence address" $defaultSql.connectAddr "visibility address" $visibilitySql.connectAddr "persistence TLS server name" $defaultSql.tls.serverName "visibility TLS server name" $visibilitySql.tls.serverName }}
+    {{- if or (empty $value) (regexMatch "(?i)localhost|\\.invalid|\\.example|change[_-]?me" $value) }}
+      {{- fail (printf "Production Temporal %s is missing or contains a placeholder." $label) }}
+    {{- end }}
+  {{- end }}
+  {{- range .Values.networkPolicy.postgresqlCidrs }}
+    {{- if or (eq . "0.0.0.0/0") (eq . "::/0") (hasPrefix "192.0.2." .) (hasPrefix "198.51.100." .) (hasPrefix "203.0.113." .) }}
+      {{- fail "Production PostgreSQL egress requires reviewed non-placeholder CIDRs; internet-wide and documentation CIDRs are forbidden." }}
+    {{- end }}
+  {{- end }}
+  {{- range .Values.networkPolicy.httpsCidrs }}
+    {{- if or (eq . "0.0.0.0/0") (eq . "::/0") (hasPrefix "192.0.2." .) (hasPrefix "198.51.100." .) (hasPrefix "203.0.113." .) }}
+      {{- fail "Production HTTPS egress requires reviewed non-placeholder CIDRs; internet-wide and documentation CIDRs are forbidden." }}
+    {{- end }}
+  {{- end }}
+  {{- if ne (last (splitList ":" $defaultSql.connectAddr)) (toString .Values.networkPolicy.postgresqlPort) }}
+    {{- fail "Persistence PostgreSQL port must match the NetworkPolicy PostgreSQL port." }}
+  {{- end }}
+  {{- if ne (last (splitList ":" $visibilitySql.connectAddr)) (toString .Values.networkPolicy.postgresqlPort) }}
+    {{- fail "Visibility PostgreSQL port must match the NetworkPolicy PostgreSQL port." }}
+  {{- end }}
+  {{- range $label, $actual := dict
+      "persistence runtime Secret" $defaultSql.existingSecret
+      "visibility runtime Secret" $visibilitySql.existingSecret
+      "persistence schema Secret" .Values.schemaManagement.persistence.existingSecret
+      "visibility schema Secret" .Values.schemaManagement.visibility.existingSecret
+      "namespace bootstrap credential Secret" .Values.namespaceBootstrap.credentialsSecret
+      "namespace bootstrap TLS Secret" .Values.namespaceBootstrap.tlsSecret }}
+    {{- $expected := index (dict
+      "persistence runtime Secret" "tenantwright-temporal-persistence"
+      "visibility runtime Secret" "tenantwright-temporal-visibility"
+      "persistence schema Secret" "tenantwright-temporal-persistence-schema"
+      "visibility schema Secret" "tenantwright-temporal-visibility-schema"
+      "namespace bootstrap credential Secret" "tenantwright-temporal-namespace-bootstrap"
+      "namespace bootstrap TLS Secret" "tenantwright-temporal-namespace-bootstrap-tls") $label }}
+    {{- if ne $actual $expected }}
+      {{- fail (printf "Production Temporal %s must use the governed Secret name %s." $label $expected) }}
+    {{- end }}
+  {{- end }}
+  {{- $webEnvironment := dict }}
+  {{- range .Values.temporal.web.additionalEnv }}
+    {{- $_ := set $webEnvironment .name . }}
+  {{- end }}
+  {{- range $name := list
+      "TEMPORAL_AUTH_ENABLED"
+      "TEMPORAL_AUTH_TYPE"
+      "TEMPORAL_AUTH_PROVIDER_URL"
+      "TEMPORAL_AUTH_ISSUER_URL"
+      "TEMPORAL_AUTH_CLIENT_ID"
+      "TEMPORAL_AUTH_CLIENT_SECRET"
+      "TEMPORAL_AUTH_CALLBACK_URL"
+      "TEMPORAL_TLS_ENABLE_HOST_VERIFICATION"
+      "TEMPORAL_TLS_SERVER_NAME" }}
+    {{- if not (hasKey $webEnvironment $name) }}
+      {{- fail (printf "Production Temporal Web UI is missing required environment setting %s." $name) }}
+    {{- end }}
+  {{- end }}
+  {{- if ne (index $webEnvironment "TEMPORAL_AUTH_ENABLED").value "true" }}
+    {{- fail "Production Temporal Web UI authentication must remain enabled." }}
+  {{- end }}
+  {{- if ne (index $webEnvironment "TEMPORAL_AUTH_TYPE").value "oidc" }}
+    {{- fail "Production Temporal Web UI authentication type must remain oidc." }}
+  {{- end }}
+  {{- if ne (index $webEnvironment "TEMPORAL_TLS_ENABLE_HOST_VERIFICATION").value "true" }}
+    {{- fail "Production Temporal Web UI TLS hostname verification must remain enabled." }}
+  {{- end }}
+  {{- range $name := list "TEMPORAL_AUTH_PROVIDER_URL" "TEMPORAL_AUTH_ISSUER_URL" "TEMPORAL_AUTH_CALLBACK_URL" }}
+    {{- $url := (index $webEnvironment $name).value | default "" }}
+    {{- if or (not (hasPrefix "https://" $url)) (regexMatch "(?i)\\.invalid|\\.example|change[_-]?me|<[^>]+>" $url) }}
+      {{- fail (printf "Production Temporal Web UI setting %s requires a non-placeholder HTTPS URL." $name) }}
+    {{- end }}
+  {{- end }}
+  {{- $clientIdReference := (index $webEnvironment "TEMPORAL_AUTH_CLIENT_ID").valueFrom.secretKeyRef }}
+  {{- $clientSecretReference := (index $webEnvironment "TEMPORAL_AUTH_CLIENT_SECRET").valueFrom.secretKeyRef }}
+  {{- if or (ne $clientIdReference.name "tenantwright-temporal-web-oidc") (ne $clientIdReference.key "client-id") }}
+    {{- fail "Temporal Web OIDC client ID must use tenantwright-temporal-web-oidc/client-id." }}
+  {{- end }}
+  {{- if or (ne $clientSecretReference.name "tenantwright-temporal-web-oidc") (ne $clientSecretReference.key "client-secret") }}
+    {{- fail "Temporal Web OIDC client secret must use tenantwright-temporal-web-oidc/client-secret." }}
+  {{- end }}
+  {{- $jwksUris := .Values.temporal.server.config.authorization.jwtKeyProvider.keySourceURIs }}
+  {{- if lt (len $jwksUris) 1 }}
+    {{- fail "Production Temporal authorization requires at least one JWKS URI." }}
+  {{- end }}
+  {{- range $jwksUri := $jwksUris }}
+    {{- if or (not (hasPrefix "https://" $jwksUri)) (regexMatch "(?i)\\.invalid|\\.example|change[_-]?me|<[^>]+>" $jwksUri) }}
+      {{- fail "Production Temporal JWKS sources require non-placeholder HTTPS URLs." }}
+    {{- end }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,19 @@
+apiVersion: rabbitmq.com/v1beta1
+kind: Policy
+metadata:
+  name: tenantwright-quorum-guardrails
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-topology
+spec:
+  name: tenantwright-quorum-guardrails
+  vhost: {{ .Values.vhost.name | quote }}
+  pattern: {{ .Values.queuePolicy.pattern | quote }}
+  applyTo: queues
+  priority: {{ .Values.queuePolicy.priority }}
+  definition:
+    delivery-limit: {{ .Values.queuePolicy.deliveryLimit }}
+    max-length-bytes: {{ .Values.queuePolicy.maxLengthBytes }}
+    overflow: reject-publish
+  rabbitmqClusterReference:
+    name: {{ .Values.cluster.name }}

@@ -1,0 +1,13 @@
+env:
+  EfCore__AutoMigrate: 'false'
+  Messaging__ServiceName: tenantwright-notifications
+  Messaging__ProducerPrincipal: tenantwright-notifications
+  Messaging__RabbitMq__UserName: tenantwright-notifications
+networkPolicy: {}
+image:
+  repository: yash9157/tenantwright-notifications
+  tag: mtls-20260801-1
+  digest: sha256:3f136676a86892246a0bd355c0bccc0669b8b550840a68da17e2bda563635367
+  pullPolicy: IfNotPresent
+migrationJob:
+  enabled: true

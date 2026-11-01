@@ -1,0 +1,54 @@
+{{- if .Values.prometheus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: tenantwright-prometheus, namespace: {{ .Values.namespace }} }
+data:
+  prometheus.yml: |
+    global: { scrape_interval: 30s, evaluation_interval: 30s }
+    scrape_configs:
+      - job_name: otel-collector
+        static_configs: [{ targets: [tenantwright-otel-collector:8889] }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: tenantwright-prometheus, namespace: {{ .Values.namespace }} }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: tenantwright-prometheus } }
+  template:
+    metadata: { labels: { app: tenantwright-prometheus } }
+    spec:
+      securityContext: { seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: prometheus
+          image: {{ .Values.prometheus.image }}
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=7d
+            {{- if .Values.prometheus.ingress.enabled }}
+            - {{ printf "--web.external-url=https://%s%s" .Values.prometheus.ingress.host (.Values.prometheus.ingress.path | trimSuffix "/") | quote }}
+            - {{ printf "--web.route-prefix=%s" (.Values.prometheus.ingress.path | trimSuffix "/") | quote }}
+            {{- end }}
+          ports: [{ name: http, containerPort: 9090 }]
+          resources: {{- toYaml .Values.prometheus.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: {{ ternary (printf "%s/-/ready" (.Values.prometheus.ingress.path | trimSuffix "/")) "/-/ready" .Values.prometheus.ingress.enabled | quote }}
+              port: http
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: {{ ternary (printf "%s/-/healthy" (.Values.prometheus.ingress.path | trimSuffix "/")) "/-/healthy" .Values.prometheus.ingress.enabled | quote }}
+              port: http
+            initialDelaySeconds: 20
+          volumeMounts: [{ name: config, mountPath: /etc/prometheus }, { name: data, mountPath: /prometheus }]
+      volumes: [{ name: config, configMap: { name: tenantwright-prometheus } }, { name: data, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: tenantwright-prometheus, namespace: {{ .Values.namespace }} }
+spec:
+  selector: { app: tenantwright-prometheus }
+  ports: [{ name: http, port: 9090, targetPort: http }]
+{{- end }}

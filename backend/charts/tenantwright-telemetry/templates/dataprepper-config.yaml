@@ -1,0 +1,64 @@
+{{- if .Values.dataPrepper.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: tenantwright-data-prepper, namespace: {{ .Values.namespace }} }
+data:
+  pipelines.yaml: |
+    entry-pipeline:
+      delay: "100"
+      source:
+        otel_trace_source:
+          port: 21890
+          ssl: false
+          authentication:
+            unauthenticated:
+      buffer:
+        bounded_blocking:
+          buffer_size: 4096
+          batch_size: 256
+      sink:
+        - pipeline:
+            name: raw-trace-pipeline
+        - pipeline:
+            name: service-map-pipeline
+    raw-trace-pipeline:
+      source:
+        pipeline:
+          name: entry-pipeline
+      buffer:
+        bounded_blocking:
+          buffer_size: 4096
+          batch_size: 256
+      processor:
+        - otel_traces:
+      sink:
+        - opensearch:
+            hosts: ["https://{{ required "opensearch.host is required" .Values.opensearch.host }}:{{ .Values.opensearch.port }}"]
+            insecure: true
+            distribution_version: default
+            username: "__OPENSEARCH_USERNAME__"
+            password: "__OPENSEARCH_PASSWORD__"
+            index_type: trace-analytics-raw
+            number_of_replicas: 0
+    service-map-pipeline:
+      delay: "100"
+      source:
+        pipeline:
+          name: entry-pipeline
+      buffer:
+        bounded_blocking:
+          buffer_size: 4096
+          batch_size: 256
+      processor:
+        - service_map:
+            window_duration: 180
+      sink:
+        - opensearch:
+            hosts: ["https://{{ required "opensearch.host is required" .Values.opensearch.host }}:{{ .Values.opensearch.port }}"]
+            insecure: true
+            distribution_version: default
+            username: "__OPENSEARCH_USERNAME__"
+            password: "__OPENSEARCH_PASSWORD__"
+            index_type: trace-analytics-service-map
+            number_of_replicas: 0
+{{- end }}

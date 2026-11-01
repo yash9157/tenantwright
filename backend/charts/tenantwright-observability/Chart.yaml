@@ -1,0 +1,30 @@
+apiVersion: v2
+name: tenantwright-observability
+description: Wrapper chart for TenantWright OSS observability stack (Grafana, Prometheus, Tempo, Loki, OTel Collector)
+type: application
+version: 0.2.0
+appVersion: "1.0"
+dependencies:
+  - name: kube-prometheus-stack
+    version: "87.19.1"
+    repository: https://prometheus-community.github.io/helm-charts
+  - name: tempo
+    version: "1.24.4"
+    repository: https://grafana.github.io/helm-charts
+    condition: tempo.enabled
+  - name: tempo-distributed
+    version: "1.61.3-tenantwright.1"
+    repository: file://vendor/tempo-distributed
+    condition: tempo-distributed.enabled
+  - name: loki
+    version: "7.1.0"
+    repository: https://grafana.github.io/helm-charts
+  - name: promtail
+    version: "6.17.1-tenantwright.1"
+    repository: file://vendor/promtail
+  - name: opentelemetry-collector
+    version: "0.165.0"
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  - name: prometheus-blackbox-exporter
+    version: "11.15.1"
+    repository: https://prometheus-community.github.io/helm-charts

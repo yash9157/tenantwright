@@ -1,0 +1,398 @@
+production:
+  enabled: false
+  environment: template
+  databaseHighAvailabilityAcknowledged: false
+  databaseRestoreDrillReference: ""
+
+temporal:
+  serviceAccount:
+    create: true
+    name: tenantwright-temporal
+    automountServiceAccountToken: false
+  server:
+    image:
+      repository: temporalio/server
+      tag: 1.32.0
+      digest: sha256:c3e752127759616bb1615e0f9ba0e21635aeb5fdeb922de4f371c350955f46ae
+      pullPolicy: IfNotPresent
+    replicaCount: 1
+    minReadySeconds: 15
+    terminationGracePeriodSeconds: 120
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    versionCheckDisabled: true
+    metrics:
+      annotations:
+        enabled: true
+      serviceMonitor:
+        enabled: true
+        interval: 30s
+        additionalLabels:
+          release: tenantwright-observability
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+      seccompProfile:
+        type: RuntimeDefault
+    additionalVolumes:
+      - name: temporal-internode-tls
+        secret:
+          secretName: tenantwright-temporal-internode-tls
+      - name: temporal-frontend-tls
+        secret:
+          secretName: tenantwright-temporal-frontend-tls
+      - name: temporal-sdk-client-ca
+        secret:
+          secretName: tenantwright-temporal-sdk-client-ca
+      - name: temporal-postgresql-ca
+        secret:
+          secretName: tenantwright-temporal-postgresql-ca
+      - name: temporal-tmp
+        emptyDir:
+          sizeLimit: 128Mi
+    additionalVolumeMounts:
+      - name: temporal-internode-tls
+        mountPath: /etc/temporal/tls/internode
+        readOnly: true
+      - name: temporal-frontend-tls
+        mountPath: /etc/temporal/tls/frontend
+        readOnly: true
+      - name: temporal-sdk-client-ca
+        mountPath: /etc/temporal/tls/sdk-client-ca
+        readOnly: true
+      - name: temporal-postgresql-ca
+        mountPath: /etc/temporal/tls/postgresql
+        readOnly: true
+      - name: temporal-tmp
+        mountPath: /tmp
+    config:
+      logLevel: "info"
+      tls:
+        internode:
+          server:
+            certFile: /etc/temporal/tls/internode/tls.crt
+            keyFile: /etc/temporal/tls/internode/tls.key
+            requireClientAuth: true
+            clientCaFiles:
+              - /etc/temporal/tls/internode/ca.crt
+          client:
+            serverName: tenantwright-temporal-internode
+            rootCaFiles:
+              - /etc/temporal/tls/internode/ca.crt
+            certFile: /etc/temporal/tls/internode/tls.crt
+            keyFile: /etc/temporal/tls/internode/tls.key
+        frontend:
+          server:
+            certFile: /etc/temporal/tls/frontend/tls.crt
+            keyFile: /etc/temporal/tls/frontend/tls.key
+            requireClientAuth: true
+            clientCaFiles:
+              - /etc/temporal/tls/internode/ca.crt
+              - /etc/temporal/tls/sdk-client-ca/ca.crt
+          client:
+            serverName: tenantwright-temporal-frontend
+            rootCaFiles:
+              - /etc/temporal/tls/frontend/ca.crt
+      authorization:
+        jwtKeyProvider:
+          keySourceURIs:
+            - https://auth.tenantwright.internal/.well-known/jwks.json
+          refreshInterval: 5m
+        permissionsClaimName: permissions
+        authorizer: default
+        claimMapper: default
+      persistence:
+        numHistoryShards: 512
+        datastores:
+          default:
+            sql:
+              createDatabase: false
+              manageSchema: false
+              pluginName: postgres12_pgx
+              driverName: postgres12_pgx
+              databaseName: temporal
+              connectAddr: tenantwright-temporal-postgresql:5432
+              connectProtocol: tcp
+              user: temporal_runtime
+              existingSecret: tenantwright-temporal-persistence
+              secretKey: password
+              maxConns: 8
+              maxIdleConns: 1
+              maxConnLifetime: 1h
+              tls:
+                enabled: true
+                caFile: /etc/temporal/tls/postgresql/ca.crt
+                serverName: postgresql.invalid
+                enableHostVerification: true
+          visibility:
+            sql:
+              createDatabase: false
+              manageSchema: false
+              pluginName: postgres12_pgx
+              driverName: postgres12_pgx
+              databaseName: temporal_visibility
+              connectAddr: tenantwright-temporal-postgresql:5432
+              connectProtocol: tcp
+              user: temporal_visibility_runtime
+              existingSecret: tenantwright-temporal-visibility
+              secretKey: password
+              maxConns: 8
+              maxIdleConns: 1
+              maxConnLifetime: 1h
+              tls:
+                enabled: true
+                caFile: /etc/temporal/tls/postgresql/ca.crt
+                serverName: postgresql.invalid
+                enableHostVerification: true
+      namespaces:
+        create: false
+    frontend:
+      containerSecurityContext: &temporalContainerSecurityContext
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      podDisruptionBudget:
+        minAvailable: 2
+      topologySpreadConstraints: &temporalTopologySpread
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: temporal
+    history:
+      containerSecurityContext: *temporalContainerSecurityContext
+      podDisruptionBudget:
+        minAvailable: 2
+      topologySpreadConstraints: *temporalTopologySpread
+    matching:
+      containerSecurityContext: *temporalContainerSecurityContext
+      podDisruptionBudget:
+        minAvailable: 2
+      topologySpreadConstraints: *temporalTopologySpread
+    worker:
+      containerSecurityContext: *temporalContainerSecurityContext
+      podDisruptionBudget:
+        minAvailable: 2
+      topologySpreadConstraints: *temporalTopologySpread
+  admintools:
+    enabled: false
+    image:
+      repository: temporalio/admin-tools
+      tag: 1.32.0
+      digest: sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
+      pullPolicy: IfNotPresent
+  web:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: temporalio/ui
+      tag: 2.55.0
+      digest: sha256:3899d5cf749b5555c9f798d46f2423b1d6190ea391ca713db5d1bba961759e58
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: false
+    additionalVolumes:
+      - name: temporal-web-client-tls
+        secret:
+          secretName: tenantwright-temporal-web-client-tls
+      - name: temporal-web-tmp
+        emptyDir:
+          sizeLimit: 64Mi
+    additionalVolumeMounts:
+      - name: temporal-web-client-tls
+        mountPath: /etc/temporal/tls/web-client
+        readOnly: true
+      - name: temporal-web-tmp
+        mountPath: /tmp
+    additionalEnv:
+      - name: TEMPORAL_DEFAULT_NAMESPACE
+        value: tenantwright-production
+      - name: TEMPORAL_TLS_CA
+        value: /etc/temporal/tls/web-client/ca.crt
+      - name: TEMPORAL_TLS_CERT
+        value: /etc/temporal/tls/web-client/tls.crt
+      - name: TEMPORAL_TLS_KEY
+        value: /etc/temporal/tls/web-client/tls.key
+      - name: TEMPORAL_TLS_ENABLE_HOST_VERIFICATION
+        value: "true"
+      - name: TEMPORAL_TLS_SERVER_NAME
+        value: tenantwright-temporal-frontend
+      - name: TEMPORAL_AUTH_ENABLED
+        value: "true"
+      - name: TEMPORAL_AUTH_TYPE
+        value: oidc
+      - name: TEMPORAL_AUTH_PROVIDER_URL
+        value: https://auth.tenantwright.internal/.well-known/openid-configuration
+      - name: TEMPORAL_AUTH_ISSUER_URL
+        value: https://auth.tenantwright.internal
+      - name: TEMPORAL_AUTH_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: tenantwright-temporal-web-oidc
+            key: client-id
+      - name: TEMPORAL_AUTH_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: tenantwright-temporal-web-oidc
+            key: client-secret
+      - name: TEMPORAL_AUTH_CALLBACK_URL
+        value: https://temporal.tenantwright.internal/auth/sso/callback
+      - name: TEMPORAL_AUTH_SCOPES
+        value: openid,profile,email,temporal
+      - name: TEMPORAL_FORWARD_HEADERS
+        value: Authorization
+    podDisruptionBudget:
+      minAvailable: 1
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  schema:
+    useHelmHooks: true
+    backoffLimit: 6
+    activeDeadlineSeconds: 900
+    ttlSecondsAfterFinished: 86400
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+  test:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    additionalEnv:
+      - name: TEMPORAL_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: tenantwright-temporal-namespace-bootstrap
+            key: api-key
+      - name: TEMPORAL_TLS_CA
+        value: /etc/temporal/tls/ca.crt
+      - name: TEMPORAL_TLS_CERT
+        value: /etc/temporal/tls/tls.crt
+      - name: TEMPORAL_TLS_KEY
+        value: /etc/temporal/tls/tls.key
+      - name: TEMPORAL_TLS_SERVER_NAME
+        value: tenantwright-temporal-frontend
+    additionalVolumeMounts:
+      - name: temporal-test-client-tls
+        mountPath: /etc/temporal/tls
+        readOnly: true
+    additionalVolumes:
+      - name: temporal-test-client-tls
+        secret:
+          secretName: tenantwright-temporal-namespace-bootstrap-tls
+  shims:
+    dockerize: false
+    elasticsearchTool: false
+
+namespaceBootstrap:
+  enabled: true
+  namespace: tenantwright-production
+  retention: 30d
+  temporalAddress: tenantwright-temporal-frontend:7233
+  serverName: tenantwright-temporal-frontend
+  credentialsSecret: tenantwright-temporal-namespace-bootstrap
+  tlsSecret: tenantwright-temporal-namespace-bootstrap-tls
+  image:
+    repository: temporalio/admin-tools
+    tag: 1.32.0
+    digest: sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
+    pullPolicy: IfNotPresent
+
+schemaManagement:
+  enabled: true
+  persistence:
+    user: temporal_schema_owner
+    existingSecret: tenantwright-temporal-persistence-schema
+    secretKey: password
+  visibility:
+    user: temporal_visibility_schema_owner
+    existingSecret: tenantwright-temporal-visibility-schema
+    secretKey: password
+
+networkPolicy:
+  enabled: true
+  workflowsNamespace: tenantwright
+  observabilityNamespace: tenantwright-observability
+  postgresqlPort: 5432
+  postgresqlCidrs:
+    - 192.0.2.1/32
+  httpsCidrs:
+    - 0.0.0.0/0

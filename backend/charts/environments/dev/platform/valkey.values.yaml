@@ -1,0 +1,20 @@
+valkey:
+  dataStorage:
+    enabled: true
+    requestedSize: 8Gi
+    className: local-path
+  replica:
+    enabled: false
+  affinity: null
+  topologySpreadConstraints: []
+  deploymentStrategy: Recreate
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1500m
+      memory: 3Gi

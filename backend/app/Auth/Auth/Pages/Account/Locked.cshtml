@@ -1,0 +1,23 @@
+@page "/Account/Locked"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.LockedModel
+@{
+    ViewData["Title"] = "Account temporarily locked";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8 text-center">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "lock", Tone = "warning", Heading = "Account temporarily locked", Description = "We temporarily locked your account after several unsuccessful sign-in attempts." })" />
+
+        <p class="mt-4 text-sm leading-relaxed text-on-surface-soft">Try again later, or reset your password to regain access.</p>
+
+        <div class="mt-6 space-y-3">
+            <a class="btn btn-primary" href="@AuthPageRoutes.ForgotPassword">Reset password</a>
+            <a class="btn btn-secondary" href="@AuthPageRoutes.SignIn">Back to sign in</a>
+        </div>
+    </div>
+</section>

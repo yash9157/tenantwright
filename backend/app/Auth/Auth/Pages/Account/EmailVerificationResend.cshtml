@@ -1,0 +1,35 @@
+@page "/Account/EmailVerification/Resend"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.EmailVerificationResendModel
+@{
+    ViewData["Title"] = "Resend verification email";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "mail", Heading = "Resend verification email", Description = "We'll send another verification link if your original one has expired." })" />
+
+        <form method="post" action="@AuthPageRoutes.EmailVerificationResend" asp-antiforgery="true" data-auth-form="true" novalidate class="mt-6 space-y-4">
+            <partial name="Partials/_AuthValidationSummary" />
+
+            <partial name="Partials/_AuthField" model="@(new AuthFieldModel { Name = "Input.Tenant", Label = "Organization ID", Value = Model.Input.Tenant, Icon = "building", Placeholder = "e.g. ACME-CORP", Validate = "tenant", Autocomplete = "organization" })" />
+
+            <partial name="Partials/_AuthField" model="@(new AuthFieldModel { Name = "Input.LoginInput", Label = "Work email", Value = Model.Input.LoginInput, Icon = "mail", Type = "email", InputMode = "email", Placeholder = "name@example.com", Validate = "login-id", Autocomplete = "email" })" />
+
+            <div class="pt-1">
+                @await Html.PartialAsync("Partials/_AuthActionButton", new AuthActionButtonModel
+                {
+                    Text = "Resend verification email",
+                    IconSymbol = "arrow_forward",
+                    LoadingText = "Sending…"
+                })
+            </div>
+        </form>
+
+        <partial name="Partials/_AuthBack" model="@("Back to sign in")" />
+    </div>
+</section>

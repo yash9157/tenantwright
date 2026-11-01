@@ -1,0 +1,27 @@
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: {{ required "cluster.name is required" .Values.cluster.name }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.cluster.name }}
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging
+spec:
+  replicas: {{ .Values.cluster.replicas }}
+  image: {{ required "cluster.image must be exactly pinned" .Values.cluster.image | quote }}
+  persistence:
+    storage: {{ required "cluster.persistence.storage is required" .Values.cluster.persistence.storage }}
+    {{- with .Values.cluster.persistence.storageClassName }}
+    storageClassName: {{ . | quote }}
+    {{- end }}
+  resources:
+    {{- toYaml .Values.cluster.resources | nindent 4 }}
+  tls:
+    secretName: {{ required "cluster.tls.secretName is required" .Values.cluster.tls.secretName }}
+    caSecretName: {{ required "cluster.tls.caSecretName is required" .Values.cluster.tls.caSecretName }}
+    disableNonTLSListeners: {{ .Values.cluster.tls.disableNonTLSListeners }}
+  terminationGracePeriodSeconds: {{ .Values.cluster.terminationGracePeriodSeconds }}
+  skipPostDeploySteps: false
+  rabbitmq:
+    additionalConfig: |
+{{ required "cluster.additionalConfig is required" .Values.cluster.additionalConfig | indent 6 }}

@@ -1,0 +1,11 @@
+{{- if .Values.pki.enabled }}
+{{- if and .Values.pki.enabled (ne .Values.cluster.tls.secretName .Values.pki.server.secretName) }}
+{{- fail "cluster.tls.secretName must equal pki.server.secretName when chart-managed PKI is enabled" }}
+{{- end }}
+{{- if and .Values.pki.enabled (ne .Values.cluster.tls.caSecretName .Values.pki.intermediate.secretName) }}
+{{- fail "cluster.tls.caSecretName must equal pki.intermediate.secretName when chart-managed PKI is enabled" }}
+{{- end }}
+{{- if lt (len .Values.pki.server.dnsNames) 4 }}
+{{- fail "pki.server.dnsNames must contain the complete RabbitMQ service DNS set" }}
+{{- end }}
+{{- end }}

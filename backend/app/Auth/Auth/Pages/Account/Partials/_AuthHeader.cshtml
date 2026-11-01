@@ -1,0 +1,26 @@
+@using Auth.Pages.Account.Partials
+@model AuthHeaderModel
+@{
+    var toneTile = Model.Tone switch
+    {
+        "success" => "bg-success-soft text-success ring-success/15",
+        "danger" => "bg-danger-soft text-danger ring-danger/15",
+        "warning" => "bg-warning-soft text-warning ring-warning/15",
+        "info" => "bg-info-soft text-info ring-info/15",
+        _ => "bg-primary-soft text-primary ring-primary/10"
+    };
+    var align = Model.Centered ? "items-center text-center" : "items-start text-left";
+}
+<div class="flex flex-col @align">
+    @if (Model.ShowIcon)
+    {
+        <div class="flex size-12 items-center justify-center rounded-2xl shadow-sm ring-1 @toneTile">
+            @AuthIcons.Get(Model.Icon, "size-6", "2")
+        </div>
+    }
+    <h1 class="@(Model.ShowIcon ? "mt-4" : "") font-headline text-2xl font-extrabold leading-tight tracking-tight text-on-surface">@Model.Heading</h1>
+    @if (!string.IsNullOrWhiteSpace(Model.Description))
+    {
+        <p class="mt-1.5 max-w-sm text-sm leading-relaxed text-on-surface-soft">@Model.Description</p>
+    }
+</div>

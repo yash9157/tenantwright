@@ -1,0 +1,155 @@
+root = true
+
+# The repository's established *.Domain.Shared and Shared.* namespace families
+# are part of every backend service contract. Renaming them for cross-language
+# keyword compatibility would be a repository-wide contract redesign, not an
+# analyzer remediation.
+[*.cs]
+dotnet_diagnostic.CA1716.severity = none
+
+# Security analyzers run under the Recommended profile and are release-blocking
+# even while the pre-existing non-security analyzer backlog remains advisory.
+dotnet_analyzer_diagnostic.category-Security.severity = error
+
+# Existing logging is structured and bounded, but most call sites predate
+# source-generated LoggerMessage delegates. Keep those performance-only rules
+# as an explicit baseline while all correctness and security diagnostics fail.
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+
+# Underscore-separated test names are the repository convention and make the
+# scenario/expectation boundary readable in test output.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+# Expected-value arrays are test-local, immutable by convention, and execute
+# once per test case. Hoisting each assertion fixture would obscure the case
+# without improving a production hot path.
+dotnet_diagnostic.CA1861.severity = none
+
+# This type intentionally represents a mutable collection of module assemblies;
+# the suffix communicates its public semantics more precisely than a generic name.
+[shared/Shared.Modularity/DependencyInjection/ModuleAssemblyCollection.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+# A default interface disposal bridge cannot suppress finalization on an
+# implementing instance; concrete UnitOfWork implementations do so directly.
+[shared/Shared.Uow/Abstractions/IUnitOfWork.cs]
+dotnet_diagnostic.CA1816.severity = none
+
+# EF Core creates array literals throughout generated migration operations.
+# Editing those files to cache arrays would be overwritten by the next
+# migration regeneration and would not affect a runtime hot path. Keep the
+# exception limited to that performance rule and the generated migration tree.
+[**/Migrations/*.cs]
+dotnet_diagnostic.CA1861.severity = none
+
+# Distributed-event consumers use the established EventHandler suffix; they
+# are consumer classes, not delegate declarations.
+[**/*EventHandler.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+[**/PermissionGrantApprovalNotificationHandlers.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+[**/FeatureValuesChangedSubscriber.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+[**/PermissionGrantChangedSubscriber.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+# These suffixes describe their real domain or framework role.
+[**/FacilityScheduleException.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+[**/AuditLogWriteRequest.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+[**/IdentityLoginRiskReasonFlags.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+[**/*ContainerFixture.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+[**/TrustedMessagingTestHost.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+# String and Int are the stable external claim-value vocabulary.
+[**/IdentityClaimValueType.cs]
+dotnet_diagnostic.CA1720.severity = none
+
+# These members are intentionally instance-shaped because DI, interface,
+# reflection, dynamic-proxy, or xUnit fixture contracts invoke them that way.
+[**/TenantUserManagementGuard.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[**/PermissionDecisionEngine.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[tests/Identity.Tests/IdentitySessionTests.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[tests/Identity.Tests/IdentityTestSupport.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[tests/Shared.AuditLogs.Tests/AuditingBehaviorTests.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[tests/Shared.AuditLogs.Tests/StrictFailureCategoryTests.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[tests/Shared.EntityFrameworkCore.Tests/TestDoubles/TrustedMessagingTestHost.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[tests/Shared.MultiTenancy.Tests/SharedHybridCacheTests.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[tests/Shared.Valkey.IntegrationTests/ValkeyContainerFixture.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[app/Auth/Auth/Controllers/Management/OpenIddictManagementController.cs]
+# ExecuteAsync uses ControllerBase response helpers and must remain instance-bound.
+dotnet_diagnostic.CA1822.severity = none
+
+[services/AuditLogs/AuditLogs.Application/Events/AuditLogWriteInfoToEntityConverter.cs]
+# The converter is a DI-owned collaborator; keeping all overloads instance-bound
+# preserves one invocation model for its event-handler callers.
+dotnet_diagnostic.CA1822.severity = none
+
+# These query expressions intentionally use parameterless case normalization:
+# EF Core translates it for PostgreSQL and the InMemory provider executes it.
+# StringComparison overloads are not SQL-translatable, while Npgsql-only ILike
+# breaks the focused provider-independent service tests.
+[services/Identity/Identity.Application/Users/IdentitySessionAppService.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1862.severity = none
+
+[services/Notifications/Notifications.Application/Presence/NotificationPresenceQueryAppService.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1862.severity = none
+
+[services/Notifications/Notifications.Application/Providers/NotificationProviderDiagnosticsAppService.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1862.severity = none
+
+[services/Notifications/Notifications.Application/Providers/NotificationProviderDiagnosticsAppService.Activity.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1862.severity = none
+
+[services/Notifications/Notifications.Application/Templates/NotificationTemplateAdminAppService.Drafts.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1862.severity = none
+
+[services/Notifications/Notifications.Application/Templates/NotificationTemplateAdminAppService.Publishing.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1862.severity = none
+
+[tests/Shared.EventBus.Tests/MessagingCatalogAndTrustTests.cs]
+# DispatchProxy generates a subclass at runtime, so its proxy base types cannot
+# be sealed even though no source-declared subclass exists.
+dotnet_diagnostic.CA1852.severity = none

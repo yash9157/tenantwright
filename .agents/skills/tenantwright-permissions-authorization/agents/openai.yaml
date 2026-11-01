@@ -1,0 +1,4 @@
+interface:
+  display_name: "TenantWright Permissions Authorization"
+  short_description: "Permissions and authorization workflow"
+  default_prompt: "Use $tenantwright-permissions-authorization to implement or review backend permissions, grants, features, and policies."

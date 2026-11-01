@@ -1,0 +1,4 @@
+interface:
+  display_name: "TenantWright Repository Governance"
+  short_description: "Coordinate ownership, verification, and signoff"
+  default_prompt: "Use $tenantwright-repo-governance to identify owners and escalation boundaries, select proportionate checks, and provide evidence-based repository signoff."

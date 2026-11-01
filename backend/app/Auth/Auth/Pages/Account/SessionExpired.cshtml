@@ -1,0 +1,20 @@
+@page "/Account/SessionExpired"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.SessionExpiredModel
+@{
+    ViewData["Title"] = "Session expired";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8 text-center">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "info", Tone = "info", Heading = "Session expired", Description = "For your security, we signed you out after a period of inactivity. Your data stays protected and encrypted." })" />
+
+        <div class="mt-6">
+            <a class="btn btn-primary" href="@AuthPageRoutes.SignIn">Sign in again</a>
+        </div>
+    </div>
+</section>

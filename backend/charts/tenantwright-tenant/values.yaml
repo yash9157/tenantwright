@@ -1,0 +1,294 @@
+nameOverride: ''
+fullnameOverride: tenantwright-tenant
+image:
+  repository: yash9157/tenantwright-tenant
+  tag: dev
+  digest: ''
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+replicaCount: 1
+rollout:
+  revisionHistoryLimit: 5
+  progressDeadlineSeconds: 600
+  minReadySeconds: 10
+  maxUnavailable: 0
+  maxSurge: 1
+terminationGracePeriodSeconds: 60
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  host: tenantwright-tenant
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: false
+    secretName: ''
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+resources:
+  requests:
+    cpu: 50m
+    memory: 384Mi
+  limits:
+    cpu: 700m
+    memory: 1Gi
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpread:
+  enabled: true
+  maxSkew: 1
+  topologyKey: kubernetes.io/hostname
+  whenUnsatisfiable: ScheduleAnyway
+env:
+  ASPNETCORE_ENVIRONMENT: Production
+  Shared__Data__ConnectionStringResolver__AllowHostFallbackForTenant: 'true'
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://tenantwright-otel-collector.tenantwright-telemetry.svc:4317
+  OTEL_SERVICE_NAME: tenantwright-tenant
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  Hosting__HttpsRedirection__Enabled: 'false'
+  PostgreSql__Runtime__RequireExplicitConfiguration: 'true'
+  PostgreSql__Runtime__Mode: Direct
+  PostgreSql__Runtime__BackendPoolSize: '0'
+  PostgreSql__Runtime__ClientPool__Pooling: 'true'
+  PostgreSql__Runtime__ClientPool__MaximumPoolSize: '4'
+  PostgreSql__Runtime__ClientPool__MinimumPoolSize: '0'
+  PostgreSql__Runtime__ClientPool__ConnectionIdleLifetimeSeconds: '60'
+  PostgreSql__Runtime__ClientPool__ConnectionPruningIntervalSeconds: '10'
+  PostgreSql__Runtime__ClientPool__ConnectionLifetimeSeconds: '300'
+  PostgreSql__Runtime__ClientPool__ConnectionTimeoutSeconds: '15'
+  PostgreSql__Runtime__ClientPool__CommandTimeoutSeconds: '30'
+  AuthServer__Authority: https://auth.dev.example.com/
+  AuthServer__Audiences: tenant
+  OpenIddict__Clients__Internal__ClientId: auth-internal
+  Caching__Provider: Valkey
+  Caching__Valkey__Configuration: 'tenantwright-valkey:6379,ssl=True,sslHost=tenantwright-valkey,abortConnect=False,connectRetry=3,connectTimeout=5000,syncTimeout=5000'
+  Caching__Valkey__InstanceName: 'TenantWright_'
+  Caching__Valkey__User: default
+  Caching__Valkey__TrustedCaCertificatePath: /app/valkey-trust/ca.crt
+  DistributedLocking__Provider: Valkey
+  AuditLogging__Signatures__CurrentKeyId: tenant-v1
+  AuditLogging__Signatures__FreshnessTolerance: '00:05:00'
+  AuditLogging__Signatures__RequireSignatures: 'true'
+  TenantConnectionStrings__Protection__CurrentKeyId: tenant-v1
+  TenantConnectionStrings__Protection__CurrentKeyVersion: '1'
+  TenantConnectionStrings__Protection__RequireProtectedValues: 'true'
+  RemoteFeatureChecker__BaseAddress: http://tenantwright-permissions:8080
+  TenantImpactEnrichment__IdentityBaseAddress: http://tenantwright-identity:8080/
+  TenantImpactEnrichment__NotificationsBaseAddress: http://tenantwright-notifications:8080/
+  TenantImpactEnrichment__TimeoutMilliseconds: '1500'
+  TenantImpactEnrichment__ClientProfile: Internal
+  PublicTenantRegistrationCleanup__Enabled: 'true'
+  PublicTenantRegistrationCleanup__ExpiryHours: '72'
+messaging:
+  # Messaging:Provider of this workload: None (bus-free), MassTransit or Wolverine.
+  provider: None
+  rabbitMqSecretName: tenantwright-tenant-rabbitmq
+  rabbitMqTrustedCaSecretName: tenantwright-rabbitmq-ca
+  rabbitMqTrustedCaSecretKey: ca.crt
+  rabbitMqClientTlsSecretName: tenantwright-tenant-rabbitmq-client-tls
+  massTransit:
+    # The commercial licence, mounted as MT_LICENSE only when provider is MassTransit.
+    licenseSecretName: tenantwright-masstransit-license
+    licenseSecretKey: license
+  trust:
+    initImage:
+      repository: busybox
+      tag: 1.37.0
+      digest: sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
+      pullPolicy: IfNotPresent
+    activeKeyId: tenantwright-tenant-v1
+    privateKeySecretName: tenantwright-tenant-messaging-signing
+    privateKeySecretKey: private.pem
+    publicKeysSecretName: tenantwright-messaging-verification-keys
+    publicKeys: []
+config:
+  forwardedHeaders:
+    knownNetworks: []
+    knownProxies: []
+# Shared databases of the dedicatable services (host, port, database only; credentials are rejected), so Tenant can
+# refuse a dedicated assignment that targets one of them. Use the host and port those services connect with; a
+# different route to the same server (another DNS name, a proxy port) is caught only by the services at runtime.
+#   AuditLogs: { host: <postgresql-host>, port: 5432, database: <auditlogs-shared-database> }
+sharedDatabaseTargets: {}
+secretEnv:
+  create: false
+  existingSecret: ''
+  annotations: {}
+  type: Opaque
+  keys: {}
+  stringData: {}
+secretRefs:
+- envName: ConnectionStrings__Default
+  secretName: tenantwright-tenant-db
+  key: connection-string
+- envName: AuditLogging__Signatures__Keys__tenant-v1
+  secretName: tenantwright-tenant-audit-signing
+  key: hmac-v1
+- envName: RemoteFeatureChecker__ClientSecret
+  secretName: tenantwright-auth-secrets
+  key: openiddict-internal-client-secret
+- envName: TenantConnectionStrings__Protection__Keys__tenant-v1
+  secretName: tenantwright-tenant-connection-protection
+  key: aes-v1
+- envName: OpenIddict__Clients__Internal__Secret
+  secretName: tenantwright-auth-secrets
+  key: openiddict-internal-client-secret
+- envName: Caching__Valkey__Password
+  secretName: tenantwright-valkey-auth
+  key: default
+extraEnv: []
+probes:
+  startup:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 60
+  readiness:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 6
+  liveness:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 2
+    failureThreshold: 3
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 70
+  # Disabled: steady .NET memory use kept small workloads at two replicas.
+  # targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+networkPolicy:
+  enabled: true
+  ingressController:
+    enabled: true
+    namespace: ingress-nginx
+  postgresql:
+    enabled: true
+    port: 5432
+    cidrs: []
+  ingress:
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  - to:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 5671
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tenantwright-telemetry
+    ports:
+    - protocol: TCP
+      port: 4317
+  - ports:
+    - protocol: TCP
+      port: 443
+pdb:
+  enabled: true
+  minAvailable: 1
+tests:
+  timeoutSeconds: 10
+  image:
+    repository: busybox
+    tag: 1.37.0
+    digest: sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
+    pullPolicy: IfNotPresent
+extraVolumes:
+- name: tmp
+  emptyDir:
+    sizeLimit: 64Mi
+- name: valkey-trust
+  secret:
+    secretName: tenantwright-valkey-tls
+    items:
+    - key: ca.crt
+      path: ca.crt
+- name: postgresql-trust
+  secret:
+    secretName: tenantwright-tenant-postgresql-ca
+    items:
+    - key: ca.crt
+      path: ca.crt
+extraVolumeMounts:
+- name: tmp
+  mountPath: /tmp
+- name: valkey-trust
+  mountPath: /app/valkey-trust
+  readOnly: true
+- name: postgresql-trust
+  mountPath: /app/postgresql-trust
+  readOnly: true
+
+# One-shot schema migration, run as a Helm pre-install/pre-upgrade hook using the
+# SCHEMA-OWNER credential so the runtime role keeps DML-only rights. The Job spec
+# and all its defaults live once in the tenantwright-common library chart; only the
+# per-service secret below differs. Disabled here on purpose: an overlay opts in.
+migrationJob:
+  enabled: false
+  schemaSecretName: tenantwright-tenant-db-schema

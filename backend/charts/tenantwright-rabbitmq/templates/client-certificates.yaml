@@ -1,0 +1,28 @@
+{{- range $principal := .Values.clientCertificates.principals }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $principal }}-rabbitmq-client
+  labels:
+    app.kubernetes.io/name: tenantwright-rabbitmq
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-client-pki
+spec:
+  secretName: {{ $principal }}-rabbitmq-client-tls
+  commonName: {{ $principal | quote }}
+  duration: {{ required "clientCertificates.duration is required" $.Values.clientCertificates.duration }}
+  renewBefore: {{ required "clientCertificates.renewBefore is required" $.Values.clientCertificates.renewBefore }}
+  privateKey:
+    algorithm: RSA
+    size: 3072
+    rotationPolicy: Always
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+  issuerRef:
+    name: {{ required "clientCertificates.issuerName is required" $.Values.clientCertificates.issuerName }}
+    kind: Issuer
+    group: cert-manager.io
+{{- end }}

@@ -1,0 +1,6 @@
+clusterIssuer:
+  enabled: true
+  name: letsencrypt-prod
+  server: https://acme-v02.api.letsencrypt.org/directory
+  privateKeySecretName: letsencrypt-prod-account-key
+  ingressClassName: nginx

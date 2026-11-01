@@ -1,0 +1,25 @@
+@page "/Account/Maintenance"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.MaintenanceModel
+@{
+    ViewData["Title"] = "Scheduled maintenance";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8 text-center">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "info", Tone = "info", Heading = "Scheduled maintenance", Description = $"We're performing scheduled updates to the {AuthBrand.Name} portal. Your data stays encrypted and protected." })" />
+
+        <div class="mt-5 inline-flex items-center gap-2 rounded-full bg-surface-low px-4 py-2 ring-1 ring-outline/50">
+            @AuthIcons.Get("info", "size-4", "2")
+            <span class="text-xs font-medium text-on-surface-soft">Expected downtime: about 15 minutes</span>
+        </div>
+
+        <div class="mt-6">
+            <a class="btn btn-primary" href="@AuthPageRoutes.SignIn">Check again</a>
+        </div>
+    </div>
+</section>

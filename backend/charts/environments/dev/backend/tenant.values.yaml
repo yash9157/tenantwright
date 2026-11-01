@@ -1,0 +1,10 @@
+env:
+  EfCore__AutoMigrate: 'false'
+networkPolicy: {}
+image:
+  repository: yash9157/tenantwright-tenant
+  tag: mtls-20260801-1
+  digest: sha256:808822c9879850003cc64c635012cbed4444ff6521037dff8232469693257515
+  pullPolicy: IfNotPresent
+migrationJob:
+  enabled: true

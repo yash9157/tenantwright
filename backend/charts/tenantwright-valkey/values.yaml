@@ -1,0 +1,299 @@
+valkey:
+  fullnameOverride: tenantwright-valkey
+
+  image:
+    registry: docker.io
+    repository: valkey/valkey
+    tag: "9.1.2"
+    digest: sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+    pullPolicy: IfNotPresent
+
+  serviceAccount:
+    create: true
+    automount: false
+
+  podSecurityContext:
+    fsGroup: 1000
+    runAsUser: 1000
+    runAsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+  initResources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+  # Keep security and coordination state durable and non-evicting. The 1.5GiB
+  # ceiling leaves headroom inside the 2GiB container limit for replication,
+  # persistence, client buffers, and allocator overhead.
+  valkeyConfig: |
+    appendonly yes
+    appendfsync everysec
+    aof-use-rdb-preamble yes
+    maxmemory 1536mb
+    maxmemory-policy noeviction
+
+  startupProbe:
+    enabled: true
+    customProbe:
+      exec:
+        command:
+          - /bin/sh
+          - -ec
+          - >-
+            export VALKEYCLI_AUTH="$(cat /valkey-users-secret/default)";
+            exec valkey-cli --no-auth-warning --tls --cacert /tls/ca.crt ping
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 60
+
+  livenessProbe:
+    enabled: true
+    customProbe:
+      tcpSocket:
+        port: tcp
+      periodSeconds: 15
+      timeoutSeconds: 2
+      failureThreshold: 4
+
+  readinessProbe:
+    enabled: true
+    customProbe:
+      exec:
+        command:
+          - /bin/sh
+          - -ec
+          - >-
+            export VALKEYCLI_AUTH="$(cat /valkey-users-secret/default)";
+            exec valkey-cli --no-auth-warning --tls --cacert /tls/ca.crt ping
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+  auth:
+    enabled: true
+    usersExistingSecret: tenantwright-valkey-auth
+    aclUsers:
+      default:
+        permissions: "~* &* +@all -@admin -@dangerous"
+        passwordKey: default
+      replication:
+        permissions: "~* &* -@all +psync +replconf +ping"
+        passwordKey: replication
+
+  replica:
+    enabled: false
+    replicas: 2
+    replicationUser: replication
+    disklessSync: true
+    minReplicasToWrite: 1
+    minReplicasMaxLag: 10
+    service:
+      enabled: false
+    persistence:
+      size: 8Gi
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+
+  tls:
+    enabled: true
+    existingSecret: tenantwright-valkey-tls
+    serverPublicKey: tls.crt
+    serverKey: tls.key
+    caPublicKey: ca.crt
+    requireClientCertificate: false
+
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: valkey
+              app.kubernetes.io/instance: tenantwright-valkey
+          topologyKey: kubernetes.io/hostname
+
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: valkey
+          app.kubernetes.io/instance: tenantwright-valkey
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+  networkPolicy:
+    labels:
+      app.kubernetes.io/part-of: tenantwright
+    ingress:
+      - from:
+          - podSelector: {}
+        ports:
+          - protocol: TCP
+            port: 6379
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: tenantwright-telemetry
+        ports:
+          - protocol: TCP
+            port: 9121
+
+  extraVolumes:
+    - name: valkey-exporter-ca
+      secret:
+        secretName: tenantwright-valkey-tls
+        items:
+          - key: ca.crt
+            path: ca.crt
+
+  metrics:
+    enabled: true
+    exporter:
+      args:
+        - --redis.addr=rediss://localhost:6379
+        - --tls-ca-cert-file=/valkey-ca/ca.crt
+      image:
+        registry: ghcr.io
+        repository: oliver006/redis_exporter
+        tag: v1.93.0
+        digest: sha256:6ca518a72f30f7f576ef92963de1b91d3c3f5fd3aeac949f878bfda183587820
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      extraVolumeMounts:
+        - name: valkey-exporter-ca
+          mountPath: /valkey-ca
+          readOnly: true
+    service:
+      enabled: true
+    serviceMonitor:
+      enabled: false
+      interval: 30s
+      scrapeTimeout: 10s
+      additionalLabels:
+        release: tenantwright-observability
+    prometheusRule:
+      enabled: false
+      extraLabels:
+        release: tenantwright-observability
+      rules:
+        - alert: TenantWrightValkeyDown
+          expr: redis_up{service="tenantwright-valkey-metrics"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: Valkey instance is unavailable
+            description: The Valkey exporter cannot reach one of the protected Valkey instances.
+            runbook_url: docs/platform/observability-oncall-runbook.md#tenantwrightvalkeyplatform
+        - alert: TenantWrightValkeyReplicaSafetyLost
+          expr: max(redis_connected_slaves{service="tenantwright-valkey-metrics"}) < 1
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: Valkey primary has no healthy replica
+            description: The primary cannot satisfy the configured minimum-replica write-safety policy.
+            runbook_url: docs/platform/observability-oncall-runbook.md#tenantwrightvalkeyplatform
+        - alert: TenantWrightValkeyMemoryHigh
+          expr: |
+            (
+              redis_memory_used_bytes{service="tenantwright-valkey-metrics"}
+              /
+              redis_memory_max_bytes{service="tenantwright-valkey-metrics"}
+            ) > 0.85
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: Valkey memory use is above 85 percent
+            description: Valkey is approaching its non-evicting maxmemory ceiling.
+            runbook_url: docs/platform/observability-oncall-runbook.md#tenantwrightvalkeyplatform
+        - alert: TenantWrightValkeyKeyEviction
+          expr: increase(redis_evicted_keys_total{service="tenantwright-valkey-metrics"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: Valkey evicted protected state
+            description: At least one key was evicted even though the platform is configured for noeviction.
+            runbook_url: docs/platform/observability-oncall-runbook.md#tenantwrightvalkeyplatform
+        - alert: TenantWrightValkeyRejectedConnections
+          expr: increase(redis_rejected_connections_total{service="tenantwright-valkey-metrics"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: Valkey rejected client connections
+            description: Valkey rejected one or more connections in the last five minutes.
+            runbook_url: docs/platform/observability-oncall-runbook.md#tenantwrightvalkeyplatform
+        - alert: TenantWrightValkeyPersistenceFailure
+          expr: |
+            redis_rdb_last_bgsave_status{service="tenantwright-valkey-metrics"} == 0
+            or
+            redis_aof_last_bgrewrite_status{service="tenantwright-valkey-metrics"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: Valkey persistence operation failed
+            description: The latest RDB save or AOF rewrite did not complete successfully.
+            runbook_url: docs/platform/observability-oncall-runbook.md#tenantwrightvalkeyplatform
+
+valkeyPki:
+  enabled: true
+  rootCertificate:
+    duration: 87600h
+    renewBefore: 8760h
+  serverCertificate:
+    duration: 2160h
+    renewBefore: 720h

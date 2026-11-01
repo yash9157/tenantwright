@@ -1,0 +1,32 @@
+# Copy to backend/auth.values.yaml in an operator-owned values directory.
+# Replace every angle-bracket token; live preflight rejects placeholders.
+replicaCount: 1
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+env:
+  AuthServer__Authority: https://<production-auth-host>/
+  PostgreSql__Runtime__Mode: TransactionPool
+  PostgreSql__Runtime__BackendPoolSize: <measured-pgbouncer-backend-pool-size>
+  Auth__Quartz__AutoCreateSchema: 'false'
+  Auth__PublicBaseUrl: https://<production-auth-host>
+  Auth__PublicTenantRegistration__ExpectedHostName: <production-auth-host>
+  Cors__Origins: https://<frontend-host>
+  OpenIddict__Issuer: https://<production-auth-host>/
+  OpenIddict__Clients__TenantWrightGateway__RedirectUris__0: https://<frontend-host>/auth/callback
+  OpenIddict__Clients__TenantWrightGateway__PostLogoutRedirectUris__0: https://<frontend-host>/auth/logout-callback
+ingress:
+  host: <production-auth-host>
+  hosts:
+  - <production-auth-host>
+  tls:
+    enabled: true
+    secretName: tenantwright-auth-tls
+networkPolicy:
+  ingressController:
+    namespace: <ingress-controller-namespace>
+  postgresql:
+    enabled: true
+    port: <postgresql-port>
+    cidrs:
+    - <reviewed-postgresql-egress-cidr>

@@ -1,0 +1,29 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: tenantwright-otel-collector, namespace: {{ .Values.namespace }} }
+spec: { minAvailable: 1, selector: { matchLabels: { app: tenantwright-otel-collector } } }
+---
+{{- if .Values.dataPrepper.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: tenantwright-data-prepper, namespace: {{ .Values.namespace }} }
+spec: { minAvailable: 1, selector: { matchLabels: { app: tenantwright-data-prepper } } }
+---
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: tenantwright-telemetry-default, namespace: {{ .Values.namespace }} }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: tenantwright } } }]
+    - from: [{ podSelector: {} }]
+  egress:
+    - to: [{ podSelector: {} }]
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
+      ports: [{ protocol: UDP, port: 53 }, { protocol: TCP, port: 53 }]
+    - ports: [{ protocol: TCP, port: {{ .Values.opensearch.port }} }]
+    - ports: [{ protocol: TCP, port: 443 }, { protocol: TCP, port: 6443 }]

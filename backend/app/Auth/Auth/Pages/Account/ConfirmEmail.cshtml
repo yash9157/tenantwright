@@ -1,0 +1,32 @@
+@page "/Account/ConfirmEmail"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.ConfirmEmailModel
+@{
+    ViewData["Title"] = Model.IsSuccess ? "Email verified" : "Verification failed";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8 text-center">
+        @if (Model.IsSuccess)
+        {
+            <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "check-circle", Tone = "success", Heading = "Email verified", Description = string.IsNullOrWhiteSpace(Model.Message) ? "Your email has been verified successfully." : Model.Message })" />
+            <div class="mt-6">
+                <a class="btn btn-primary group" href="@AuthPageRoutes.SignIn">
+                    <span>Continue</span>
+                    <span class="transition-transform duration-200 group-hover:translate-x-1">@AuthIcons.Get("arrow-right", "size-[18px]", "2")</span>
+                </a>
+            </div>
+        }
+        else
+        {
+            <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "alert-circle", Tone = "danger", Heading = "Verification failed", Description = string.IsNullOrWhiteSpace(Model.Message) ? "This verification link is invalid or has expired." : Model.Message })" />
+            <div class="mt-6 space-y-3">
+                <a class="btn btn-primary" href="@AuthPageRoutes.EmailVerificationResend">Request a new link</a>
+                <a class="btn btn-secondary" href="@AuthPageRoutes.SignIn">Back to sign in</a>
+            </div>
+        }
+    </div>
+</section>

@@ -1,0 +1,39 @@
+@using Auth.Pages.Account.Partials
+@{
+    var title = ViewData["Title"] as string ?? "Secure Access";
+    var maxWidth = ViewData["AuthMaxWidth"] as string ?? "max-w-md";
+}
+<!DOCTYPE html>
+<html lang="en" class="h-screen-safe">
+<head>
+    <partial name="/Pages/Account/Partials/_AuthHead.cshtml" model="@title" />
+</head>
+<body class="auth-canvas relative h-screen-safe overflow-hidden font-body text-on-surface antialiased selection:bg-primary-soft selection:text-on-surface">
+
+    @* ambient blueprint grid behind everything *@
+    <div class="auth-grid pointer-events-none fixed inset-0 -z-10" aria-hidden="true"></div>
+
+    <div class="relative flex h-screen-safe flex-col">
+
+        <main class="relative min-h-0 flex-1 overflow-y-auto">
+            <div class="flex min-h-full flex-col items-center justify-center px-6 py-10 sm:px-10">
+                <div class="w-full @maxWidth animate-auth-in">
+                    @RenderBody()
+                </div>
+            </div>
+        </main>
+
+        <footer class="shrink-0 flex flex-col items-center justify-between gap-3 px-6 py-4 text-xs text-on-surface-soft/70 sm:flex-row sm:px-10">
+            <p>© 2026 @AuthBrand.LegalName</p>
+            <nav class="flex items-center gap-5" aria-label="Legal">
+                <a class="transition-colors hover:text-primary" href="/Privacy">Privacy</a>
+                <a class="transition-colors hover:text-primary" href="/Privacy">Security</a>
+                <a class="transition-colors hover:text-primary" href="@Auth.Routing.AuthPageRoutes.SignIn">Support</a>
+            </nav>
+        </footer>
+    </div>
+
+    <partial name="/Pages/Account/Partials/_AuthScripts.cshtml" />
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

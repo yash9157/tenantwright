@@ -1,0 +1,88 @@
+# Dev-only Helm deployment identities. No cluster-scoped permissions or RBAC writes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: github-dev-helm
+  namespace: tenantwright
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services, serviceaccounts, pods, persistentvolumeclaims]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-dev-backend
+  namespace: tenantwright
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-dev-backend
+  namespace: tenantwright
+subjects:
+  - kind: ServiceAccount
+    name: github-dev-backend
+    namespace: tenantwright
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: github-dev-helm
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-dev-backend-token
+  namespace: tenantwright
+  annotations:
+    kubernetes.io/service-account.name: github-dev-backend
+type: kubernetes.io/service-account-token
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-dev-frontend
+  namespace: tenantwright
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-dev-frontend
+  namespace: tenantwright
+subjects:
+  - kind: ServiceAccount
+    name: github-dev-frontend
+    namespace: tenantwright
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: github-dev-helm
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-dev-frontend-token
+  namespace: tenantwright
+  annotations:
+    kubernetes.io/service-account.name: github-dev-frontend
+type: kubernetes.io/service-account-token

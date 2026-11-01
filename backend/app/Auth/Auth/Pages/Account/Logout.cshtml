@@ -1,0 +1,26 @@
+@page
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.LogoutModel
+@{
+    ViewData["Title"] = "Sign out";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8 text-center">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "lock", Heading = "Sign out", Description = "Close your session on this device." })" />
+
+        <form id="logout-form" method="post" action="@AuthPageRoutes.Logout" asp-antiforgery="true" data-auth-form="true" class="mt-6 space-y-3">
+            @await Html.PartialAsync("Partials/_AuthActionButton", new AuthActionButtonModel
+            {
+                Text = "Sign out",
+                IsPrimary = true,
+                LoadingText = "Signing out…"
+            })
+            <a class="btn btn-secondary" href="@AuthPageRoutes.SignIn">Stay signed in</a>
+        </form>
+    </div>
+</section>

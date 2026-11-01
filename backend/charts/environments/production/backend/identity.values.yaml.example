@@ -1,0 +1,22 @@
+# Copy to backend/identity.values.yaml in an operator-owned values directory.
+# Replace every angle-bracket token; live preflight rejects placeholders.
+replicaCount: 1
+ingress:
+  host: tenantwright-identity
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+env:
+  AuthServer__Authority: https://<production-auth-host>/
+  PostgreSql__Runtime__Mode: TransactionPool
+  PostgreSql__Runtime__BackendPoolSize: <measured-pgbouncer-backend-pool-size>
+  Passkeys__RelyingPartyId: <production-auth-host>
+  Passkeys__Origins__0: https://<production-auth-host>
+networkPolicy:
+  ingressController:
+    namespace: <ingress-controller-namespace>
+  postgresql:
+    enabled: true
+    port: <postgresql-port>
+    cidrs:
+    - <reviewed-postgresql-egress-cidr>

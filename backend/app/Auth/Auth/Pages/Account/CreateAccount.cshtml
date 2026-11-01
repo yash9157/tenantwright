@@ -1,0 +1,47 @@
+@page
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.CreateAccountModel
+@{
+    ViewData["Title"] = "Create your account";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "user", Heading = "Start your organization", Description = "We will email an invitation to securely finish your organization setup." })" />
+
+        <form method="post" action="@AuthPageRoutes.CreateAccount" asp-antiforgery="true" data-auth-form="true" novalidate class="mt-6 space-y-4">
+            <input asp-for="Input.IdempotencyToken" type="hidden" />
+            <input asp-for="Input.CaptchaToken" type="hidden" />
+            <partial name="Partials/_AuthAlert" model="@(new AuthAlertModel { Message = Model.ErrorMessage ?? string.Empty })" />
+            <partial name="Partials/_AuthValidationSummary" />
+
+            <partial name="Partials/_AuthField" model="@(new AuthFieldModel { Name = "Input.Tenant", Label = "Organization ID", Value = Model.Input.Tenant, Icon = "building", Placeholder = "e.g. ACME-CORP", Validate = "tenant", Autocomplete = "organization" })" />
+
+            <partial name="Partials/_AuthField" model="@(new AuthFieldModel { Name = "Input.UserName", Label = "Preferred username", Value = Model.Input.UserName, Icon = "id-card", Placeholder = "Optional", Validate = "username", Autocomplete = "username", Optional = true })" />
+
+            <partial name="Partials/_AuthField" model="@(new AuthFieldModel { Name = "Input.Email", Label = "Work email", Value = Model.Input.Email, Icon = "mail", Type = "email", InputMode = "email", Placeholder = "name@example.com", Validate = "email", Autocomplete = "email" })" />
+
+            @if (Model.PublicRegistrationEnabled)
+            {
+                <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+                <div class="cf-turnstile" data-sitekey="@Model.TurnstileSiteKey" data-response-field-name="Input.CaptchaToken"></div>
+            }
+
+
+            <div class="pt-1">
+                @await Html.PartialAsync("Partials/_AuthActionButton", new AuthActionButtonModel
+                {
+                    Text = "Send invitation",
+                    IconSymbol = "arrow_forward",
+                    LoadingText = "Sending invitation…"
+                })
+            </div>
+        </form>
+
+        <partial name="Partials/_AuthFooter" model="@(new AuthFooterModel { Prompt = "Already have an account?", LinkText = "Sign in", LinkHref = AuthPageRoutes.SignIn })" />
+    </div>
+</section>

@@ -1,0 +1,11 @@
+# Merge the per-service digest artifacts emitted by tenantwright-ci into this map.
+# Every selected workload requires its registry-proven sha256 digest.
+images:
+  tenantwright-auditlogs: sha256:<64-lowercase-hex-characters>
+  tenantwright-auth: sha256:<64-lowercase-hex-characters>
+  tenantwright-gateway: sha256:<64-lowercase-hex-characters>
+  tenantwright-identity: sha256:<64-lowercase-hex-characters>
+  tenantwright-notifications: sha256:<64-lowercase-hex-characters>
+  tenantwright-permissions: sha256:<64-lowercase-hex-characters>
+  tenantwright-tenant: sha256:<64-lowercase-hex-characters>
+  tenantwright-workflows: sha256:<64-lowercase-hex-characters>

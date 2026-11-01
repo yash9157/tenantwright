@@ -1,0 +1,112 @@
+{{- if .Values.pki.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ required "pki.bootstrapIssuerName is required" .Values.pki.bootstrapIssuerName }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-pki
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ required "pki.root.certificateName is required" .Values.pki.root.certificateName }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-pki
+spec:
+  secretName: {{ required "pki.root.secretName is required" .Values.pki.root.secretName }}
+  commonName: {{ required "pki.root.commonName is required" .Values.pki.root.commonName | quote }}
+  duration: {{ required "pki.root.duration is required" .Values.pki.root.duration }}
+  renewBefore: {{ required "pki.root.renewBefore is required" .Values.pki.root.renewBefore }}
+  isCA: true
+  privateKey:
+    algorithm: RSA
+    size: 4096
+    rotationPolicy: Always
+  usages:
+    - digital signature
+    - cert sign
+    - crl sign
+  issuerRef:
+    name: {{ .Values.pki.bootstrapIssuerName }}
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ required "pki.root.issuerName is required" .Values.pki.root.issuerName }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-pki
+spec:
+  ca:
+    secretName: {{ .Values.pki.root.secretName }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ required "pki.intermediate.certificateName is required" .Values.pki.intermediate.certificateName }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-pki
+spec:
+  secretName: {{ required "pki.intermediate.secretName is required" .Values.pki.intermediate.secretName }}
+  commonName: {{ required "pki.intermediate.commonName is required" .Values.pki.intermediate.commonName | quote }}
+  duration: {{ required "pki.intermediate.duration is required" .Values.pki.intermediate.duration }}
+  renewBefore: {{ required "pki.intermediate.renewBefore is required" .Values.pki.intermediate.renewBefore }}
+  isCA: true
+  privateKey:
+    algorithm: RSA
+    size: 4096
+    rotationPolicy: Always
+  usages:
+    - digital signature
+    - cert sign
+    - crl sign
+  issuerRef:
+    name: {{ .Values.pki.root.issuerName }}
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ required "pki.intermediate.issuerName is required" .Values.pki.intermediate.issuerName }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-pki
+spec:
+  ca:
+    secretName: {{ .Values.pki.intermediate.secretName }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ required "pki.server.certificateName is required" .Values.pki.server.certificateName }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-pki
+spec:
+  secretName: {{ required "pki.server.secretName is required" .Values.pki.server.secretName }}
+  commonName: {{ required "pki.server.commonName is required" .Values.pki.server.commonName | quote }}
+  dnsNames:
+    {{- toYaml .Values.pki.server.dnsNames | nindent 4 }}
+  duration: {{ required "pki.server.duration is required" .Values.pki.server.duration }}
+  renewBefore: {{ required "pki.server.renewBefore is required" .Values.pki.server.renewBefore }}
+  privateKey:
+    algorithm: RSA
+    size: 3072
+    rotationPolicy: Always
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+  issuerRef:
+    name: {{ .Values.pki.intermediate.issuerName }}
+    kind: Issuer
+    group: cert-manager.io
+{{- end }}

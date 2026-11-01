@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>..\\..\\..</DockerfileContext>
+    <UserSecretsId>8a079a7d-7ed5-4a7c-9748-96508e8e76dd</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="MessagePack" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" />
+    <PackageReference Include="OpenIddict.Validation.AspNetCore" />
+    <PackageReference Include="OpenIddict.Validation.SystemNetHttp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\\Notifications.Application\\Notifications.Application.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.AspNetCore.Host\\Shared.AspNetCore.Host.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.AuditLogs\\Shared.AuditLogs.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.EventBus.Hosting\Shared.EventBus.Hosting.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.BackgroundTasks\\Shared.BackgroundTasks.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.Data\\Shared.Data.csproj" />
+    <ProjectReference Include="..\\Notifications.EntityFrameworkCore\\Notifications.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.Permissions\\Shared.Permissions.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.EventContracts\\Shared.EventContracts.csproj" />
+    <ProjectReference Include="..\..\..\orchestration\TenantWright.ServiceDefaults\TenantWright.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

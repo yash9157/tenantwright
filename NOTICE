@@ -1,0 +1,15 @@
+TenantWright
+Copyright 2026 yash9157 and the TenantWright contributors
+
+This product includes software developed by yash9157 and the TenantWright
+contributors (https://github.com/yash9157/tenantwright).
+
+Licensed under the Apache License, Version 2.0 (see LICENSE). Under section
+4(d) of that license, redistributions and derivative works must retain the
+attribution notices in this NOTICE file.
+
+Third-party components are distributed under their own licenses. In
+particular, the optional MassTransit messaging provider depends on MassTransit
+9, which is commercially licensed by Massient, Inc.; using that provider
+requires a MassTransit licence. The default Wolverine provider and all other
+dependencies are under permissive open-source licenses.

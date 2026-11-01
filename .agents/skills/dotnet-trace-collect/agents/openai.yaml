@@ -1,0 +1,4 @@
+interface:
+  display_name: ".NET Diagnostic Collection"
+  short_description: "Plan scoped .NET trace capture with privacy safeguards"
+  default_prompt: "Use $dotnet-trace-collect to plan diagnostic collection for a repository service, confirming approval, target, bounds, and protected artifact handling before execution."

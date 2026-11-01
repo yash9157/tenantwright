@@ -1,0 +1,5 @@
+@using Auth.Pages.Account.Partials
+@* Trailing valid/invalid status icons for a text field.
+   Shown/hidden by CSS via [data-auth-valid]/[data-auth-invalid] on the parent
+   [data-auth-field]; auth-validation.js toggles those attributes. No bindings. *@
+<span class="auth-control__status"><span class="ok">@AuthIcons.Get("check", "size-5", "2.25")</span><span class="err">@AuthIcons.Get("alert-circle")</span></span>

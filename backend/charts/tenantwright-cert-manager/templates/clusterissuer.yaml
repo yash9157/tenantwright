@@ -1,0 +1,19 @@
+{{- if .Values.clusterIssuer.enabled }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ required "clusterIssuer.name is required" .Values.clusterIssuer.name }}
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: certificate-issuer
+spec:
+  acme:
+    email: {{ required "clusterIssuer.email is required when ACME issuance is enabled" .Values.clusterIssuer.email | quote }}
+    server: {{ required "clusterIssuer.server is required" .Values.clusterIssuer.server | quote }}
+    privateKeySecretRef:
+      name: {{ required "clusterIssuer.privateKeySecretName is required" .Values.clusterIssuer.privateKeySecretName }}
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: {{ required "clusterIssuer.ingressClassName is required" .Values.clusterIssuer.ingressClassName | quote }}
+{{- end }}

@@ -1,0 +1,11 @@
+env:
+  EfCore__AutoMigrate: 'false'
+  BackgroundTasks__Hangfire__PrepareSchemaIfNecessary: 'false'
+networkPolicy: {}
+image:
+  repository: yash9157/tenantwright-permissions
+  tag: mtls-20260801-1
+  digest: sha256:8ea2b75fbc448ff40096cb665fdf3ada028cdb4f52bb7e0e61ce2c69718601f3
+  pullPolicy: IfNotPresent
+migrationJob:
+  enabled: true

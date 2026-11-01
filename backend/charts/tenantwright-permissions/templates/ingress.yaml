@@ -1,0 +1,65 @@
+{{- if .Values.ingress.enabled }}
+{{- $root := . }}
+{{- $annotations := dict }}
+{{- $defaultHosts := list .Values.ingress.host }}
+{{- $hosts := .Values.ingress.hosts | default $defaultHosts }}
+{{- with .Values.ingress.annotations }}
+{{- range $k, $v := . }}
+{{- $_ := set $annotations $k $v }}
+{{- end }}
+{{- end }}
+{{- if and .Values.ingress.certManager .Values.ingress.certManager.enabled }}
+{{- $issuerName := .Values.ingress.certManager.issuerRef.name }}
+{{- $issuerKind := default "ClusterIssuer" .Values.ingress.certManager.issuerRef.kind }}
+{{- $issuerGroup := default "cert-manager.io" .Values.ingress.certManager.issuerRef.group }}
+{{- if and $issuerName (eq $issuerGroup "cert-manager.io") (eq $issuerKind "ClusterIssuer") }}
+{{- $_ := set $annotations "cert-manager.io/cluster-issuer" $issuerName }}
+{{- else }}
+{{- if $issuerName }}
+{{- $_ := set $annotations "cert-manager.io/issuer" $issuerName }}
+{{- $_ := set $annotations "cert-manager.io/issuer-kind" $issuerKind }}
+{{- $_ := set $annotations "cert-manager.io/issuer-group" $issuerGroup }}
+{{- end }}
+{{- end }}
+{{- with .Values.ingress.certManager.annotations }}
+{{- range $k, $v := . }}
+{{- $_ := set $annotations $k $v }}
+{{- end }}
+{{- end }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tenantwrightapp.fullname" . }}
+  labels:
+    {{- include "tenantwrightapp.labels" . | nindent 4 }}
+  {{- if gt (len $annotations) 0 }}
+  annotations:
+    {{- toYaml $annotations | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- end }}
+  rules:
+    {{- range $host := $hosts }}
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: {{ $root.Values.ingress.path | quote }}
+            pathType: {{ $root.Values.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "tenantwrightapp.fullname" $root }}
+                port:
+                  number: {{ $root.Values.service.port }}
+    {{- end }}
+  {{- if and .Values.ingress.tls.enabled .Values.ingress.tls.secretName }}
+  tls:
+    - hosts:
+        {{- range $host := $hosts }}
+        - {{ $host | quote }}
+        {{- end }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+{{- end }}

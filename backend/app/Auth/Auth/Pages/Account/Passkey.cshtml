@@ -1,0 +1,60 @@
+@page "/Account/Login/Passkey"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.PasskeyModel
+@{
+    ViewData["Title"] = Model.IsEnrollment ? "Create a passkey" : "Use your passkey";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8">
+        @if (!Model.HasChallengeContext)
+        {
+            <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "info", Tone = "warning", Heading = "Session expired", Description = "Your passkey session is no longer valid. Sign in again to start a new one." })" />
+            <div class="mt-6"><a class="btn btn-primary" href="@AuthPageRoutes.SignIn">Back to sign in</a></div>
+        }
+        else
+        {
+            <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "shield-check", Heading = Model.IsEnrollment ? "Create a passkey" : "Use your passkey", Description = Model.IsEnrollment ? "Your privileged account requires phishing-resistant verification. Use this device or a security key to create a passkey." : "Verify this sign-in with a passkey saved on this device or a security key." })" />
+            <partial name="Partials/_AuthAlert" model="@(new AuthAlertModel { Message = Model.ErrorMessage ?? string.Empty })" />
+
+            @if (string.IsNullOrWhiteSpace(Model.OptionsJson))
+            {
+                <form method="post" asp-page-handler="Begin" asp-antiforgery="true" class="mt-6 space-y-3" data-auth-form="true">
+                    <button class="btn btn-primary w-full" type="submit" data-auth-loading-text="@(Model.IsEnrollment ? "Preparing…" : "Verifying…")">@(Model.IsEnrollment ? "Create passkey" : "Continue with passkey")</button>
+                    @if (!Model.IsEnrollment && Model.CodeBasedMfaAvailable)
+                    {
+                        <a class="btn btn-secondary w-full" href="@Model.AlternativeMfaRoute">@Model.AlternativeMfaLabel</a>
+                    }
+                </form>
+            }
+            else
+            {
+                <form id="passkey-complete-form" method="post" asp-page-handler="Complete" asp-antiforgery="true" class="mt-6" data-enrolling="@(Model.IsEnrollment ? "true" : "false")">
+                    <input asp-for="Input.CeremonyId" type="hidden" />
+                    <input asp-for="Input.ResponseJson" id="passkey-response" type="hidden" />
+                    <div class="flex flex-col items-center text-center">
+                        <div class="relative flex size-14 items-center justify-center">
+                            <span id="passkey-spinner" class="absolute inset-0 animate-spin rounded-full border-2 border-primary/20 border-t-primary" aria-hidden="true"></span>
+                            <span id="passkey-icon-error" class="hidden text-warning" aria-hidden="true">@AuthIcons.Get("alert-circle", "size-7", "2")</span>
+                        </div>
+                        <p id="passkey-status" role="status" class="mt-4 text-sm text-on-surface-soft">Waiting for your authenticator…</p>
+                        <div id="passkey-retry-group" class="mt-4 hidden w-full">
+                            <button id="passkey-retry" class="btn btn-secondary w-full" type="button">Try again</button>
+                            <a class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-on-surface-soft transition-colors hover:text-primary" href="@AuthPageRoutes.SignIn">
+                                @AuthIcons.Get("arrow-left", "size-4", "2")
+                                <span>Back to sign in</span>
+                            </a>
+                        </div>
+                    </div>
+                </form>
+                <script type="application/json" id="passkey-options">@Html.Raw(Model.OptionsJson)</script>
+                @section Scripts {
+                    <script src="~/js/auth/passkey-ceremony.js" asp-append-version="true" defer></script>
+                }
+            }
+        }
+    </div>
+</section>

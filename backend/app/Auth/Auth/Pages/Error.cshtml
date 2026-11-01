@@ -1,0 +1,31 @@
+﻿@page
+@model ErrorModel
+@{
+    ViewData["Title"] = "Something went wrong";
+    Layout = "_AuthShell";
+    ViewData["AuthHideBrandPanel"] = true;
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="rounded-3xl bg-surface-high p-8 text-center shadow-card ring-1 ring-outline/50 sm:p-10">
+    <div class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-danger-soft text-danger">
+        <span class="material-symbols-outlined text-[34px]">error</span>
+    </div>
+    <h1 class="mt-6 font-headline text-2xl font-bold tracking-tight text-on-surface">Something went wrong</h1>
+    <p class="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-on-surface-soft">An unexpected error occurred while processing your request. Please try again. If the problem persists, contact your IT administrator.</p>
+
+    @if (Model.ShowRequestId)
+    {
+        <p class="mt-4 inline-flex items-center gap-2 rounded-full bg-surface-low px-3 py-1.5 text-xs text-on-surface-soft ring-1 ring-outline/40">
+            <span class="font-semibold uppercase tracking-wider">Request ID</span>
+            <code class="font-mono text-on-surface">@Model.RequestId</code>
+        </p>
+    }
+
+    <div class="mt-8">
+        <a class="inline-flex w-full items-center justify-center gap-2 rounded-xl brand-gradient px-4 py-3.5 font-headline text-sm font-bold text-on-primary shadow-soft transition-all hover:opacity-95 active:scale-[0.98]" href="@Auth.Routing.AuthPageRoutes.SignIn">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            <span>Back to sign in</span>
+        </a>
+    </div>
+</section>

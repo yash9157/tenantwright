@@ -1,0 +1,29 @@
+{{- if .Values.tenantwrightObservability.synthetic.enabled }}
+{{- $synthetic := .Values.tenantwrightObservability.synthetic }}
+{{- $targetNs := default "tenantwright" .Values.tenantwrightObservability.alerts.targetNamespace }}
+{{- range $target := $synthetic.targets }}
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: {{ printf "tenantwright-synthetic-%s" ($target.name | lower | replace "_" "-" | replace "." "-" ) | trunc 63 | trimSuffix "-" }}
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ $.Release.Name | quote }}
+    release: {{ $.Release.Name | quote }}
+spec:
+  interval: {{ default "30s" $synthetic.interval }}
+  scrapeTimeout: {{ default "10s" $synthetic.scrapeTimeout }}
+  module: {{ default "http_2xx" $synthetic.module | quote }}
+  prober:
+    url: {{ $synthetic.proberUrl | quote }}
+  targets:
+    staticConfig:
+      static:
+        - {{ $target.url | quote }}
+      labels:
+        check_name: {{ $target.name | quote }}
+        service_name: {{ default $target.name $target.service | quote }}
+        namespace: {{ $targetNs | quote }}
+---
+{{- end }}
+{{- end }}

@@ -1,0 +1,373 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "production",
+    "temporal",
+    "namespaceBootstrap",
+    "schemaManagement",
+    "networkPolicy"
+  ],
+  "properties": {
+    "production": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "environment",
+        "databaseHighAvailabilityAcknowledged",
+        "databaseRestoreDrillReference"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "environment": { "type": "string", "minLength": 1 },
+        "databaseHighAvailabilityAcknowledged": { "type": "boolean" },
+        "databaseRestoreDrillReference": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "enabled": { "const": true } },
+            "required": ["enabled"]
+          },
+          "then": {
+            "properties": {
+              "databaseHighAvailabilityAcknowledged": { "const": true },
+              "databaseRestoreDrillReference": { "minLength": 8 }
+            }
+          }
+        }
+      ]
+    },
+    "temporal": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "serviceAccount",
+        "server",
+        "admintools",
+        "web",
+        "schema",
+        "test",
+        "shims"
+      ],
+      "properties": {
+        "serviceAccount": {
+          "type": "object",
+          "required": ["create", "name", "automountServiceAccountToken"],
+          "properties": {
+            "create": { "const": true },
+            "name": { "type": "string", "minLength": 1 },
+            "automountServiceAccountToken": { "const": false }
+          }
+        },
+        "server": {
+          "type": "object",
+          "required": [
+            "image",
+            "replicaCount",
+            "minReadySeconds",
+            "terminationGracePeriodSeconds",
+            "deploymentStrategy",
+            "resources",
+            "securityContext",
+            "config",
+            "frontend",
+            "history",
+            "matching",
+            "worker"
+          ],
+          "properties": {
+            "image": { "$ref": "#/definitions/immutableImage" },
+            "replicaCount": { "type": "integer", "minimum": 1 },
+            "minReadySeconds": { "type": "integer", "minimum": 1 },
+            "terminationGracePeriodSeconds": { "type": "integer", "minimum": 30 },
+            "deploymentStrategy": { "type": "object" },
+            "resources": { "$ref": "#/definitions/resources" },
+            "securityContext": { "$ref": "#/definitions/podSecurityContext" },
+            "config": {
+              "type": "object",
+              "required": ["tls", "authorization", "persistence"],
+              "properties": {
+                "tls": { "type": "object" },
+                "authorization": { "type": "object" },
+                "persistence": {
+                  "type": "object",
+                  "required": ["datastores"],
+                  "properties": {
+                    "datastores": {
+                      "type": "object",
+                      "required": ["default", "visibility"],
+                      "properties": {
+                        "default": { "$ref": "#/definitions/sqlStore" },
+                        "visibility": { "$ref": "#/definitions/sqlStore" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "frontend": { "$ref": "#/definitions/serverComponent" },
+            "history": { "$ref": "#/definitions/serverComponent" },
+            "matching": { "$ref": "#/definitions/serverComponent" },
+            "worker": { "$ref": "#/definitions/serverComponent" }
+          }
+        },
+        "admintools": {
+          "type": "object",
+          "required": ["enabled", "image"],
+          "properties": {
+            "enabled": { "const": false },
+            "image": { "$ref": "#/definitions/immutableImage" }
+          }
+        },
+        "web": {
+          "type": "object",
+          "required": [
+            "enabled",
+            "replicaCount",
+            "image",
+            "service",
+            "ingress",
+            "resources",
+            "securityContext",
+            "containerSecurityContext"
+          ],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "replicaCount": { "type": "integer", "minimum": 0 },
+            "image": { "$ref": "#/definitions/immutableImage" },
+            "service": {
+              "type": "object",
+              "properties": { "type": { "const": "ClusterIP" } },
+              "required": ["type"]
+            },
+            "ingress": {
+              "type": "object",
+              "properties": { "enabled": { "const": false } },
+              "required": ["enabled"]
+            },
+            "resources": { "$ref": "#/definitions/resources" },
+            "securityContext": { "$ref": "#/definitions/podSecurityContext" },
+            "containerSecurityContext": { "$ref": "#/definitions/containerSecurityContext" }
+          }
+        },
+        "schema": {
+          "type": "object",
+          "required": ["resources", "securityContext", "containerSecurityContext"],
+          "properties": {
+            "resources": { "$ref": "#/definitions/resources" },
+            "securityContext": { "$ref": "#/definitions/podSecurityContext" },
+            "containerSecurityContext": { "$ref": "#/definitions/containerSecurityContext" }
+          }
+        },
+        "test": {
+          "type": "object",
+          "required": ["resources", "securityContext", "containerSecurityContext"],
+          "properties": {
+            "resources": { "$ref": "#/definitions/resources" },
+            "securityContext": { "$ref": "#/definitions/podSecurityContext" },
+            "containerSecurityContext": { "$ref": "#/definitions/containerSecurityContext" }
+          }
+        }
+      }
+    },
+    "namespaceBootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "namespace",
+        "retention",
+        "temporalAddress",
+        "serverName",
+        "credentialsSecret",
+        "tlsSecret",
+        "image"
+      ],
+      "properties": {
+        "enabled": { "const": true },
+        "namespace": { "type": "string", "pattern": "^tenantwright-[a-z0-9-]+$" },
+        "retention": { "type": "string", "pattern": "^[1-9][0-9]*d$" },
+        "temporalAddress": { "type": "string", "minLength": 3 },
+        "serverName": { "type": "string", "minLength": 1 },
+        "credentialsSecret": { "type": "string", "minLength": 1 },
+        "tlsSecret": { "type": "string", "minLength": 1 },
+        "image": { "$ref": "#/definitions/immutableImage" }
+      }
+    },
+    "schemaManagement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "persistence", "visibility"],
+      "properties": {
+        "enabled": { "const": true },
+        "persistence": { "$ref": "#/definitions/schemaOwner" },
+        "visibility": { "$ref": "#/definitions/schemaOwner" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "workflowsNamespace",
+        "observabilityNamespace",
+        "postgresqlPort",
+        "postgresqlCidrs",
+        "httpsCidrs"
+      ],
+      "properties": {
+        "enabled": { "const": true },
+        "workflowsNamespace": { "type": "string", "minLength": 1 },
+        "observabilityNamespace": { "type": "string", "minLength": 1 },
+        "postgresqlPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "postgresqlCidrs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 3 }
+        },
+        "httpsCidrs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 3 }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "immutableImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": ["string", "number"] },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "pullPolicy": { "enum": ["IfNotPresent", "Always", "Never"] }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "required": ["cpu", "memory"]
+        },
+        "limits": {
+          "type": "object",
+          "required": ["cpu", "memory"]
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "required": ["runAsNonRoot", "runAsUser", "runAsGroup", "seccompProfile"],
+      "properties": {
+        "runAsNonRoot": { "const": true },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "seccompProfile": {
+          "type": "object",
+          "properties": { "type": { "const": "RuntimeDefault" } },
+          "required": ["type"]
+        }
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "required": [
+        "allowPrivilegeEscalation",
+        "capabilities",
+        "readOnlyRootFilesystem",
+        "runAsNonRoot"
+      ],
+      "properties": {
+        "allowPrivilegeEscalation": { "const": false },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "contains": { "const": "ALL" }
+            }
+          },
+          "required": ["drop"]
+        },
+        "readOnlyRootFilesystem": { "const": true },
+        "runAsNonRoot": { "const": true }
+      }
+    },
+    "serverComponent": {
+      "type": "object",
+      "required": ["containerSecurityContext", "podDisruptionBudget", "topologySpreadConstraints"],
+      "properties": {
+        "containerSecurityContext": { "$ref": "#/definitions/containerSecurityContext" },
+        "podDisruptionBudget": {
+          "type": "object",
+          "properties": { "minAvailable": { "type": "integer", "minimum": 0 } },
+          "required": ["minAvailable"]
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "minItems": 1
+        }
+      }
+    },
+    "sqlStore": {
+      "type": "object",
+      "required": ["sql"],
+      "properties": {
+        "sql": {
+          "type": "object",
+          "required": [
+            "createDatabase",
+            "manageSchema",
+            "pluginName",
+            "driverName",
+            "databaseName",
+            "connectAddr",
+            "user",
+            "existingSecret",
+            "secretKey",
+            "tls"
+          ],
+          "properties": {
+            "createDatabase": { "const": false },
+            "manageSchema": { "const": false },
+            "pluginName": { "const": "postgres12_pgx" },
+            "driverName": { "const": "postgres12_pgx" },
+            "databaseName": { "type": "string", "minLength": 1 },
+            "connectAddr": { "type": "string", "pattern": "^[^:\\s]+:[0-9]{1,5}$" },
+            "user": { "type": "string", "minLength": 1 },
+            "existingSecret": { "type": "string", "minLength": 1 },
+            "secretKey": { "type": "string", "minLength": 1 },
+            "tls": {
+              "type": "object",
+              "required": ["enabled", "caFile", "serverName", "enableHostVerification"],
+              "properties": {
+                "enabled": { "const": true },
+                "caFile": { "type": "string", "minLength": 1 },
+                "serverName": { "type": "string", "minLength": 1 },
+                "enableHostVerification": { "const": true }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemaOwner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user", "existingSecret", "secretKey"],
+      "properties": {
+        "user": { "type": "string", "minLength": 1 },
+        "existingSecret": { "type": "string", "minLength": 1 },
+        "secretKey": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

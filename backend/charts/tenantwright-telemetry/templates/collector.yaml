@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenantwright-otel-collector
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.collector.replicas }}
+  selector: { matchLabels: { app: tenantwright-otel-collector } }
+  template:
+    metadata:
+      labels: { app: tenantwright-otel-collector }
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: tenantwright-otel-collector
+      containers:
+        - name: collector
+          image: {{ .Values.collector.image }}
+          args: ["--config=/etc/otel/collector.yaml"]
+          env:
+            - { name: OPENSEARCH_USERNAME, valueFrom: { secretKeyRef: { name: {{ .Values.opensearch.existingSecret }}, key: {{ .Values.opensearch.usernameKey }} } } }
+            - { name: OPENSEARCH_PASSWORD, valueFrom: { secretKeyRef: { name: {{ .Values.opensearch.existingSecret }}, key: {{ .Values.opensearch.passwordKey }} } } }
+          resources: {{- toYaml .Values.collector.resources | nindent 12 }}
+          readinessProbe: { httpGet: { path: /, port: 13133 }, initialDelaySeconds: 5 }
+          livenessProbe: { httpGet: { path: /, port: 13133 }, initialDelaySeconds: 10 }
+          ports: [{ name: health, containerPort: 13133 }, { name: otlp-grpc, containerPort: 4317 }, { name: otlp-http, containerPort: 4318 }, { name: metrics, containerPort: 8889 }]
+          volumeMounts: [{ name: config, mountPath: /etc/otel }, { name: queue, mountPath: /var/lib/otelcol/file_storage }]
+      volumes: [{ name: config, configMap: { name: tenantwright-otel-collector } }, { name: queue, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenantwright-otel-collector
+  namespace: {{ .Values.namespace }}
+spec:
+  selector: { app: tenantwright-otel-collector }
+  ports: [{name: otlp-grpc, port: 4317}, {name: otlp-http, port: 4318}, {name: metrics, port: 8889}, {name: health, port: 13133, targetPort: health}]

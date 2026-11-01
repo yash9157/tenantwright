@@ -1,0 +1,4 @@
+interface:
+  display_name: "Service Scaffolding"
+  short_description: "Service structure, references, packages, and hosts"
+  default_prompt: "Use $tenantwright-service-scaffolding to create or repair a backend service structure, dependency graph, package set, or Dockerfile."

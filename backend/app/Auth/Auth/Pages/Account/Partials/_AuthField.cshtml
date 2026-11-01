@@ -1,0 +1,37 @@
+@using Auth.Pages.Account.Partials
+@model AuthFieldModel
+@{
+    // Mirror what asp-validation-for emits so auth-validation.js + server validation
+    // both resolve this field by name (data-valmsg-for) — see auth-validation.js getFieldState.
+    var hasServerError = ViewData.ModelState.TryGetValue(Model.Name, out var entry)
+        && entry.Errors.Count > 0;
+    var serverError = hasServerError ? entry!.Errors[0].ErrorMessage : string.Empty;
+}
+<div data-auth-field="true">
+    <label for="@Model.FieldId" class="auth-label">
+        @Model.Label
+        @if (Model.Optional)
+        {
+            <span class="font-normal normal-case tracking-normal text-on-surface-soft/60">(optional)</span>
+        }
+    </label>
+    <div class="auth-control auth-control--icon auth-control--status">
+        <span class="auth-control__icon">@AuthIcons.Get(Model.Icon)</span>
+        <input id="@Model.FieldId"
+               name="@Model.Name"
+               value="@Model.Value"
+               type="@Model.Type"
+               class="auth-input"
+               placeholder="@Model.Placeholder"
+               data-auth-validate="@Model.Validate"
+               autocomplete="@Model.Autocomplete"
+               inputmode="@Model.InputMode"
+               maxlength="@(Model.MaxLength?.ToString())" />
+        <partial name="Partials/_AuthFieldStatus" />
+    </div>
+    <span class="auth-error @(hasServerError ? "field-validation-error" : "field-validation-valid")" data-valmsg-for="@Model.Name" data-valmsg-replace="true">@serverError</span>
+    @if (!string.IsNullOrWhiteSpace(Model.Helper))
+    {
+        <span class="auth-helper">@Model.Helper</span>
+    }
+</div>

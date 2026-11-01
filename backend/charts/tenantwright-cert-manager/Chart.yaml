@@ -1,0 +1,10 @@
+apiVersion: v2
+name: tenantwright-cert-manager
+description: Wrapper chart for Jetstack cert-manager used for ingress TLS issuance
+type: application
+version: 0.1.1
+appVersion: "v1.21.2"
+dependencies:
+  - name: cert-manager
+    version: v1.21.2
+    repository: https://charts.jetstack.io

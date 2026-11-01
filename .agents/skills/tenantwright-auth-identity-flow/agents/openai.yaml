@@ -1,0 +1,4 @@
+interface:
+  display_name: "TenantWright Auth and Identity Flow"
+  short_description: "Authentication and identity workflow"
+  default_prompt: "Use $tenantwright-auth-identity-flow to implement or review authentication, tokens, identity, sessions, or MFA."

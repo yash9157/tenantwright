@@ -1,0 +1,6 @@
+# Copy to platform/valkey.values.yaml and select the target cluster's durable
+# storage class. Live preflight rejects placeholders and an omitted class.
+valkey:
+  replica:
+    persistence:
+      storageClass: <production-storage-class>

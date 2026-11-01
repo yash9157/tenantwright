@@ -1,0 +1,33 @@
+@{
+    var summaryEntry = ViewData.ModelState.TryGetValue(string.Empty, out var modelEntry)
+        ? modelEntry
+        : null;
+    var summaryMessages = summaryEntry?.Errors
+        .Select(error => error.ErrorMessage)
+        .Where(message => !string.IsNullOrWhiteSpace(message))
+        .ToList() ?? new List<string>();
+    var hasMessages = summaryMessages.Count > 0;
+}
+
+@* The icon is an inline SVG (no text content) so auth-validation.js's textContent
+   heuristic stays accurate, and the icon + wrapper survive client-side updates
+   because ensureSummaryList only replaces the <ul> children. *@
+<div class="auth-alert auth-alert--error @(hasMessages ? "validation-summary-errors" : "validation-summary-valid")"
+     data-auth-summary="true"
+     role="alert"
+     aria-live="polite"
+     @(hasMessages ? null : "hidden")>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-5 shrink-0" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+    <div class="min-w-0">
+        <ul class="space-y-1 font-medium leading-relaxed">
+            @foreach (var message in summaryMessages)
+            {
+                <li>@message</li>
+            }
+        </ul>
+    </div>
+</div>

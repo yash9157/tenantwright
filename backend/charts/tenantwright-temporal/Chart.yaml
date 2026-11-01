@@ -1,0 +1,10 @@
+apiVersion: v2
+name: tenantwright-temporal
+description: Version-pinned self-hosted Temporal platform for TenantWright workflows
+type: application
+version: 0.2.1
+appVersion: "1.32.0"
+dependencies:
+  - name: temporal
+    version: 1.6.0-tenantwright.1
+    repository: file://vendor/temporal

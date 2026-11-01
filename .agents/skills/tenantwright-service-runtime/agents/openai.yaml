@@ -1,0 +1,4 @@
+interface:
+  display_name: "Service Runtime"
+  short_description: "Runtime wiring, messaging, caching, and telemetry"
+  default_prompt: "Use $tenantwright-service-runtime to implement or review backend runtime wiring, caching, messaging, tenancy, health, or telemetry."

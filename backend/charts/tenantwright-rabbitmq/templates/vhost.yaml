@@ -1,0 +1,12 @@
+apiVersion: rabbitmq.com/v1beta1
+kind: Vhost
+metadata:
+  name: tenantwright-vhost
+  labels:
+    app.kubernetes.io/part-of: tenantwright
+    app.kubernetes.io/component: messaging-topology
+spec:
+  name: {{ required "vhost.name is required" .Values.vhost.name | quote }}
+  deletionPolicy: {{ required "vhost.deletionPolicy is required" .Values.vhost.deletionPolicy }}
+  rabbitmqClusterReference:
+    name: {{ .Values.cluster.name }}

@@ -1,0 +1,125 @@
+cluster:
+  name: tenantwright-rabbitmq
+  replicas: 3
+  image: rabbitmq:4.3.6-management@sha256:8dd6e3570ddaa2ef82a6c3a8950e79c1f73893adfbdddbc374fc1f1ac8a0f5dd
+  persistence:
+    storage: 100Gi
+    storageClassName: ''
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1500m
+      memory: 2Gi
+  tls:
+    secretName: tenantwright-rabbitmq-server-tls
+    caSecretName: tenantwright-rabbitmq-ca
+    disableNonTLSListeners: true
+  terminationGracePeriodSeconds: 604800
+  additionalConfig: |
+    cluster_partition_handling = pause_minority
+    default_queue_type = quorum
+    queue_leader_locator = balanced
+    vm_memory_high_watermark.relative = 0.6
+    disk_free_limit.relative = 1.5
+    consumer_timeout = 1800000
+
+pki:
+  enabled: false
+  bootstrapIssuerName: tenantwright-rabbitmq-selfsigned
+  root:
+    certificateName: tenantwright-rabbitmq-root-ca
+    issuerName: tenantwright-rabbitmq-root-ca
+    secretName: tenantwright-rabbitmq-root-ca
+    commonName: TenantWright RabbitMQ Root CA
+    duration: 87600h
+    renewBefore: 8760h
+  intermediate:
+    certificateName: tenantwright-rabbitmq-intermediate-ca
+    issuerName: tenantwright-rabbitmq-intermediate-ca
+    secretName: tenantwright-rabbitmq-ca
+    commonName: TenantWright RabbitMQ Intermediate CA
+    duration: 43800h
+    renewBefore: 4380h
+  server:
+    certificateName: tenantwright-rabbitmq-server
+    secretName: tenantwright-rabbitmq-server-tls
+    commonName: tenantwright-rabbitmq.tenantwright.svc
+    duration: 2160h
+    renewBefore: 360h
+    dnsNames:
+    - tenantwright-rabbitmq
+    - tenantwright-rabbitmq.tenantwright
+    - tenantwright-rabbitmq.tenantwright.svc
+    - tenantwright-rabbitmq.tenantwright.svc.cluster.local
+    - '*.tenantwright-rabbitmq-nodes.tenantwright.svc.cluster.local'
+
+# RabbitMQ requires mutual TLS on the AMQP listener.  These client certificates
+# are issued by the already-deployed intermediate; their private keys never
+# enter Helm values or application images.
+clientCertificates:
+  # The RabbitMQ listener trusts the root configured through caSecretName, so
+  # mTLS clients are issued directly by that root.  This avoids relying on a
+  # client TLS stack to transmit an intermediate chain.
+  issuerName: tenantwright-rabbitmq-root-ca
+  duration: 2160h
+  renewBefore: 360h
+  principals:
+    - tenantwright-auditlogs
+    - tenantwright-auth
+    - tenantwright-identity
+    - tenantwright-notifications
+    - tenantwright-permissions
+    - tenantwright-tenant
+    - tenantwright-workflows
+
+vhost:
+  name: tenantwright
+  deletionPolicy: retain
+
+principals:
+  - name: tenantwright-auditlogs
+    credentialsSecretName: tenantwright-auditlogs-rabbitmq
+  - name: tenantwright-auth
+    credentialsSecretName: tenantwright-auth-rabbitmq
+  - name: tenantwright-identity
+    credentialsSecretName: tenantwright-identity-rabbitmq
+  - name: tenantwright-notifications
+    credentialsSecretName: tenantwright-notifications-rabbitmq
+  - name: tenantwright-permissions
+    credentialsSecretName: tenantwright-permissions-rabbitmq
+  - name: tenantwright-tenant
+    credentialsSecretName: tenantwright-tenant-rabbitmq
+  - name: tenantwright-workflows
+    credentialsSecretName: tenantwright-workflows-rabbitmq
+
+permissions:
+  # Fixed MassTransit delayed-redelivery infrastructure is shared and contains
+  # no business route ownership.  Per-service endpoint names remain restricted
+  # to each user's tenantwright-<service>(-|$) pattern by the RabbitMQ User CR.
+  # Service-owned event contracts use their CLR namespace as their broker
+  # exchange name (for example Tenant.Domain.Shared.Events.*Eto), while
+  # shared contracts use Shared.EventContracts.*. Both are durable fanout
+  # exchanges, not service receive endpoints.
+  configurePattern: '^(tenantwright-.*|mt-delay-.*|mt-delay-return|Shared.EventContracts.*|.*Eto)$'
+  writePattern: '^(tenantwright-.*|mt-delay-.*|mt-delay-return|Shared.EventContracts.*|.*Eto)$'
+  # MassTransit binds service-owned receive queues to these shared event
+  # exchanges.  RabbitMQ evaluates those source exchanges against the read
+  # permission as part of the bind operation.
+  readSharedPattern: 'mt-delay-.*|Shared.EventContracts.*|.*Eto'
+
+queuePolicy:
+  pattern: '^tenantwright-'
+  priority: 100
+  maxLengthBytes: 1073741824
+  deliveryLimit: 20
+
+podDisruptionBudget:
+  minAvailable: 2
+
+networkPolicy:
+  enabled: true
+  applicationNamespace: tenantwright
+  topologyOperatorNamespace: rabbitmq-system
+  observabilityNamespace: tenantwright-observability

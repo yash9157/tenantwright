@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: tenantwright-fluent-bit, namespace: {{ .Values.namespace }} }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: tenantwright-fluent-bit }
+rules:
+  - apiGroups: [""]
+    resources: [pods, namespaces]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: tenantwright-fluent-bit }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: tenantwright-fluent-bit }
+subjects: [{ kind: ServiceAccount, name: tenantwright-fluent-bit, namespace: {{ .Values.namespace }} }]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: tenantwright-fluent-bit, namespace: {{ .Values.namespace }} }
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        1
+        Log_Level    info
+        Parsers_File /fluent-bit/etc/parsers.conf
+        Parsers_File /fluent-bit/etc/custom_parsers.conf
+        storage.path /fluent-bit/state
+        storage.sync normal
+        storage.checksum off
+        storage.backlog.mem_limit 50M
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_PORT     2020
+    [INPUT]
+        Name              tail
+        Path              /var/log/containers/*.log
+        Parser            cri
+        Tag               kube.var.log.containers.*
+        Mem_Buf_Limit     20MB
+        Skip_Long_Lines   On
+        DB                /fluent-bit/state/tail.db
+        storage.type      filesystem
+    [FILTER]
+        Name              kubernetes
+        Match             kube.*
+        Kube_Tag_Prefix   kube.var.log.containers.
+        Kube_URL          https://kubernetes.default.svc:443
+        Kube_CA_File      /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File   /var/run/secrets/kubernetes.io/serviceaccount/token
+        Merge_Log         On
+        Keep_Log          On
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude Off
+    [FILTER]
+        Name              lua
+        Match             kube.*
+        Script            /fluent-bit/etc/resource-enrichment.lua
+        Call              enrich_resource
+    [OUTPUT]
+        Name              opentelemetry
+        Match             kube.*
+        Host              tenantwright-otel-collector.tenantwright-telemetry.svc.cluster.local
+        Port              4318
+        Logs_uri          /v1/logs
+        Logs_resource_metadata_key Resource
+        tls               Off
+  custom_parsers.conf: |
+    [PARSER]
+        Name        cri
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+  resource-enrichment.lua: |
+    function enrich_resource(tag, timestamp, record)
+      local kubernetes = record["kubernetes"]
+      if kubernetes == nil then return 1, timestamp, record end
+      local resource = {}
+      if kubernetes["pod_name"] ~= nil then resource["k8s.pod.name"] = kubernetes["pod_name"] end
+      if kubernetes["namespace_name"] ~= nil then resource["k8s.namespace.name"] = kubernetes["namespace_name"] end
+      if kubernetes["container_name"] ~= nil then resource["k8s.container.name"] = kubernetes["container_name"] end
+      if kubernetes["container_image"] ~= nil then resource["container.image.name"] = kubernetes["container_image"] end
+      if kubernetes["host"] ~= nil then resource["k8s.node.name"] = kubernetes["host"] end
+      if next(resource) ~= nil then record["Resource"] = resource end
+      return 1, timestamp, record
+    end
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: { name: tenantwright-fluent-bit, namespace: {{ .Values.namespace }} }
+spec:
+  selector: { matchLabels: { app: tenantwright-fluent-bit } }
+  template:
+    metadata:
+      labels: { app: tenantwright-fluent-bit }
+      annotations:
+        # ConfigMap subPath mounts do not refresh running containers. Roll the
+        # DaemonSet whenever Helm applies a new release configuration.
+        checksum/config: {{ .Release.Revision | quote }}
+    spec:
+      serviceAccountName: tenantwright-fluent-bit
+      tolerations: [{ operator: Exists }]
+      securityContext: { seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: fluent-bit
+          image: {{ .Values.fluentBit.image }}
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, runAsNonRoot: false }
+          resources: {{- toYaml .Values.fluentBit.resources | nindent 12 }}
+          ports: [{ name: http, containerPort: 2020 }]
+          readinessProbe: { httpGet: { path: /api/v1/health, port: http }, initialDelaySeconds: 5 }
+          livenessProbe: { httpGet: { path: /api/v1/health, port: http }, initialDelaySeconds: 15 }
+          volumeMounts:
+            - { name: config, mountPath: /fluent-bit/etc/fluent-bit.conf, subPath: fluent-bit.conf, readOnly: true }
+            - { name: config, mountPath: /fluent-bit/etc/custom_parsers.conf, subPath: custom_parsers.conf, readOnly: true }
+            - { name: config, mountPath: /fluent-bit/etc/resource-enrichment.lua, subPath: resource-enrichment.lua, readOnly: true }
+            - { name: varlog, mountPath: /var/log, readOnly: true }
+            - { name: storage, mountPath: /fluent-bit/state }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: config, configMap: { name: tenantwright-fluent-bit } }
+        - { name: varlog, hostPath: { path: /var/log } }
+        - { name: storage, hostPath: { path: /var/lib/tenantwright-fluent-bit, type: DirectoryOrCreate } }
+        - { name: tmp, emptyDir: {} }

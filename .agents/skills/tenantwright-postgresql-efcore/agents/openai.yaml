@@ -1,0 +1,4 @@
+interface:
+  display_name: "PostgreSQL and EF Core"
+  short_description: "Review EF models, migrations, and PostgreSQL behavior"
+  default_prompt: "Use $tenantwright-postgresql-efcore to implement or review repository EF Core models, migrations, queries, tenant filters, and PostgreSQL behavior."

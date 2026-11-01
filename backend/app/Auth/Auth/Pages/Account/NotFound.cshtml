@@ -1,0 +1,22 @@
+@page "/Account/NotFound"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.NotFoundModel
+@{
+    ViewData["Title"] = "Page not found";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8 text-center">
+
+        <p class="font-headline text-sm font-bold uppercase tracking-[0.2em] text-primary">Error 404</p>
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { ShowIcon = false, Heading = "Page not found", Description = "This page may have been moved or is restricted. Access to protected systems is monitored and logged." })" />
+
+        <div class="mt-6 space-y-3">
+            <a class="btn btn-primary" href="@AuthPageRoutes.SignIn">Back to sign in</a>
+            <a class="btn btn-secondary" href="@AuthPageRoutes.ForgotPassword">Contact IT support</a>
+        </div>
+    </div>
+</section>

@@ -1,0 +1,49 @@
+cert-manager:
+  fullnameOverride: cert-manager
+  crds:
+    enabled: true
+  replicaCount: 1
+  prometheus:
+    enabled: false
+  webhook:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 150m
+        memory: 192Mi
+  cainjector:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 150m
+        memory: 192Mi
+  startupapicheck:
+    enabled: true
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
+  resources:
+    requests:
+      cpu: 75m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+clusterIssuer:
+  enabled: false
+  name: letsencrypt-prod
+  email: ''
+  server: https://acme-v02.api.letsencrypt.org/directory
+  privateKeySecretName: letsencrypt-prod-account-key
+  ingressClassName: nginx

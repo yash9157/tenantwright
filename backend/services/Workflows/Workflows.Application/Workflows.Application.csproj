@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Temporalio" />
+    <ProjectReference Include="..\\Workflows.Application.Contracts\\Workflows.Application.Contracts.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.Modularity\\Shared.Modularity.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.AuditLogs\\Shared.AuditLogs.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.EventBus\\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.EventContracts\\Shared.EventContracts.csproj" />
+    <ProjectReference Include="..\\..\\..\\shared\\Shared.Permissions\\Shared.Permissions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+</Project>

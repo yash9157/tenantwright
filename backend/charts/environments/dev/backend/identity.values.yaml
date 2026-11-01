@@ -1,0 +1,11 @@
+env:
+  EfCore__AutoMigrate: 'false'
+  BackgroundTasks__Hangfire__PrepareSchemaIfNecessary: 'false'
+networkPolicy: {}
+image:
+  repository: yash9157/tenantwright-identity
+  tag: mtls-20260801-1
+  digest: sha256:ff0a2cb1be0ec072b6e6bd78f7b6e1e8fe8d19f4371a8882c2c0ddd076d359d9
+  pullPolicy: IfNotPresent
+migrationJob:
+  enabled: true

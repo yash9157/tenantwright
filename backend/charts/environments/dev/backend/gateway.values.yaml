@@ -1,0 +1,16 @@
+ingress:
+  className: nginx
+  annotations:
+    acme.cert-manager.io/http01-edit-in-place: 'true'
+networkPolicy:
+  enabled: true
+  ingressController:
+    enabled: true
+    namespace: kube-system
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1500m
+    memory: 2Gi

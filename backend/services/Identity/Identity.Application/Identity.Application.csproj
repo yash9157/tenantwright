@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Identity.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Fido2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <ProjectReference Include="..\..\..\shared\Shared.AuditLogs\Shared.AuditLogs.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.BackgroundTasks\Shared.BackgroundTasks.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.Caching\Shared.Caching.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.DistributedLocking\Shared.DistributedLocking.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.Modularity\Shared.Modularity.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.EventBus\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\Identity.Domain\Identity.Domain.csproj" />
+    <ProjectReference Include="..\Identity.EntityFrameworkCore\Identity.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\Identity.Application.Contracts\Identity.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\Tenant\Tenant.Domain.Shared\Tenant.Domain.Shared.csproj" />
+    <ProjectReference Include="..\..\Permissions\Permissions.Domain.Shared\Permissions.Domain.Shared.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.EventContracts\Shared.EventContracts.csproj" />
+  </ItemGroup>
+
+</Project>

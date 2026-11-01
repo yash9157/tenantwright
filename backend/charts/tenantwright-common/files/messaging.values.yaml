@@ -1,0 +1,78 @@
+# Non-secret trust catalog shared by every messaging workload, whichever provider it runs.
+# Secret values are supplied by environment-owned Kubernetes Secrets; this file
+# freezes only immutable key IDs, actors, and Secret key names.
+# Shared in-cluster RabbitMQ TLS reachability for every messaging workload.
+# The service remains restricted to the tenantwright-rabbitmq selector and AMQPS.
+networkPolicy:
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tenantwright-rabbitmq
+      ports:
+        - protocol: TCP
+          port: 5671
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tenantwright-telemetry
+      ports:
+        - protocol: TCP
+          port: 4317
+    - ports:
+        - protocol: TCP
+          port: 443
+messaging:
+  trust:
+    publicKeys:
+      - keyId: tenantwright-auditlogs-v1
+        actor: tenantwright-auditlogs
+        secretKey: tenantwright-auditlogs-v1.pem
+        revoked: false
+      - keyId: tenantwright-auth-v1
+        actor: tenantwright-auth
+        secretKey: tenantwright-auth-v1.pem
+        revoked: false
+      - keyId: tenantwright-identity-v1
+        actor: tenantwright-identity
+        secretKey: tenantwright-identity-v1.pem
+        revoked: false
+      - keyId: tenantwright-notifications-v1
+        actor: tenantwright-notifications
+        secretKey: tenantwright-notifications-v1.pem
+        revoked: false
+      - keyId: tenantwright-permissions-v1
+        actor: tenantwright-permissions
+        secretKey: tenantwright-permissions-v1.pem
+        revoked: false
+      - keyId: tenantwright-tenant-v1
+        actor: tenantwright-tenant
+        secretKey: tenantwright-tenant-v1.pem
+        revoked: false
+      - keyId: tenantwright-workflows-v1
+        actor: tenantwright-workflows
+        secretKey: tenantwright-workflows-v1.pem
+        revoked: false
+      - keyId: tenantwright-messaging-replay-v1
+        actor: tenantwright-messaging-replay
+        secretKey: tenantwright-messaging-replay-v1.pem
+        revoked: false

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="System.Linq.Dynamic.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared.Domain\Shared.Domain.csproj" />
+    <ProjectReference Include="..\Shared.Data\Shared.Data.csproj" />
+    <ProjectReference Include="..\Shared.Domain.Shared\Shared.Domain.Shared.csproj" />
+    <ProjectReference Include="..\Shared.MultiTenancy\Shared.MultiTenancy.csproj" />
+    <ProjectReference Include="..\Shared.Permissions\Shared.Permissions.csproj" />
+    <ProjectReference Include="..\Shared.CurrentUser\Shared.CurrentUser.csproj" />
+    <ProjectReference Include="..\Shared.EventBus\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\Shared.Uow\Shared.Uow.csproj" />
+    <ProjectReference Include="..\Shared.Modularity\Shared.Modularity.csproj" />
+    <ProjectReference Include="..\Shared.Caching\Shared.Caching.csproj" />
+    <ProjectReference Include="..\Shared.DistributedLocking\Shared.DistributedLocking.csproj" />
+    <ProjectReference Include="..\Shared.AuditLogs\Shared.AuditLogs.csproj" />
+  </ItemGroup>
+
+</Project>

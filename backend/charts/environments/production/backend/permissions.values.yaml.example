@@ -1,0 +1,18 @@
+# Copy to backend/permissions.values.yaml in an operator-owned values directory.
+# Replace every angle-bracket token; live preflight rejects placeholders.
+replicaCount: 1
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+env:
+  AuthServer__Authority: https://<production-auth-host>/
+  PostgreSql__Runtime__Mode: TransactionPool
+  PostgreSql__Runtime__BackendPoolSize: <measured-pgbouncer-backend-pool-size>
+networkPolicy:
+  ingressController:
+    namespace: <ingress-controller-namespace>
+  postgresql:
+    enabled: true
+    port: <postgresql-port>
+    cidrs:
+    - <reviewed-postgresql-egress-cidr>

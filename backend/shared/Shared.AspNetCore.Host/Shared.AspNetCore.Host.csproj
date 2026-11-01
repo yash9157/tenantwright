@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Settings.Configuration" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared.MultiTenancy\Shared.MultiTenancy.csproj" />
+    <ProjectReference Include="..\Shared.AspNetCore.ProblemDetails\Shared.AspNetCore.ProblemDetails.csproj" />
+    <ProjectReference Include="..\Shared.Caching\Shared.Caching.csproj" />
+    <ProjectReference Include="..\Shared.DistributedLocking\Shared.DistributedLocking.csproj" />
+    <ProjectReference Include="..\Shared.Autofac\Shared.Autofac.csproj" />
+  </ItemGroup>
+
+</Project>

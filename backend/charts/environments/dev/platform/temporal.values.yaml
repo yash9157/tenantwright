@@ -1,0 +1,39 @@
+production:
+  enabled: false
+  environment: dev
+  databaseHighAvailabilityAcknowledged: false
+  databaseRestoreDrillReference: ''
+temporal:
+  server:
+    resources:
+      requests:
+        cpu: 150m
+        memory: 512Mi
+    metrics:
+      serviceMonitor:
+        enabled: false
+    config:
+      authorization:
+        jwtKeyProvider:
+          keySourceURIs: []
+        permissionsClaimName: permissions
+        authorizer: ''
+        claimMapper: ''
+      persistence: {}
+    frontend:
+      podDisruptionBudget:
+        minAvailable: 0
+    history:
+      podDisruptionBudget:
+        minAvailable: 0
+    matching:
+      podDisruptionBudget:
+        minAvailable: 0
+    worker:
+      podDisruptionBudget:
+        minAvailable: 0
+  web:
+    enabled: false
+    replicaCount: 0
+networkPolicy:
+  httpsCidrs: []

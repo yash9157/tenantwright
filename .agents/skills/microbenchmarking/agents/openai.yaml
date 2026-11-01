@@ -1,0 +1,4 @@
+interface:
+  display_name: ".NET Microbenchmarking"
+  short_description: "Compare .NET speed and allocations with bounded BDN runs"
+  default_prompt: "Use $microbenchmarking to plan a controlled comparison of repository .NET implementations while preserving correctness and package ownership."

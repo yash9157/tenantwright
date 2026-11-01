@@ -1,0 +1,29 @@
+@page
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.PublicRegistrationStatusModel
+@{
+    ViewData["Title"] = Model.Status.Title;
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+    var tone = Model.Status.IsReady ? "success" : "info";
+    var icon = Model.Status.IsReady ? "check-circle" : "clock";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8 text-center">
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = icon, Tone = tone, Heading = Model.Status.Title, Description = Model.Status.Message })" />
+
+        <div class="mt-6 space-y-3">
+            @if (Model.Status.IsReady)
+            {
+                <a class="btn btn-primary" href="@Auth.Routing.AuthPageRoutes.SignIn">Sign in</a>
+            }
+            else if (!string.IsNullOrWhiteSpace(Model.Token))
+            {
+                <a class="btn btn-primary" href="@($"{Auth.Routing.AuthPageRoutes.PublicRegistrationStatus}?token={Uri.EscapeDataString(Model.Token)}")">Refresh status</a>
+            }
+            <a class="btn btn-secondary" href="@Auth.Routing.AuthPageRoutes.CreateAccount">Start a new request</a>
+        </div>
+    </div>
+</section>

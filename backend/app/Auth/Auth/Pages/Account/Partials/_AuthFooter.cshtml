@@ -1,0 +1,14 @@
+@using Auth.Pages.Account.Partials
+@model AuthFooterModel
+@if (!string.IsNullOrWhiteSpace(Model.LinkText))
+{
+    <div class="mt-6 border-t border-outline/60 pt-5 text-center">
+        <p class="text-sm text-on-surface-soft">
+            @if (!string.IsNullOrWhiteSpace(Model.Prompt))
+            {
+                <span>@Model.Prompt</span>
+            }
+            <a class="ml-1 font-semibold text-primary transition-colors hover:text-primary-container" href="@Model.LinkHref">@Model.LinkText</a>
+        </p>
+    </div>
+}

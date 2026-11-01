@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="RabbitMQ.Client" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\shared\Shared.Autofac\Shared.Autofac.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EntityFrameworkCore\Shared.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EventBus\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EventBus.Hosting\Shared.EventBus.Hosting.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EventBus.Wolverine\Shared.EventBus.Wolverine.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.EventContracts\Shared.EventContracts.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.MultiTenancy\Shared.MultiTenancy.csproj" />
+  </ItemGroup>
+</Project>

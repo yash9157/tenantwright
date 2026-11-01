@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared.Caching\Shared.Caching.csproj" />
+    <ProjectReference Include="..\Shared.CurrentUser\Shared.CurrentUser.csproj" />
+    <ProjectReference Include="..\Shared.DistributedLocking\Shared.DistributedLocking.csproj" />
+    <ProjectReference Include="..\Shared.EventContracts\Shared.EventContracts.csproj" />
+    <ProjectReference Include="..\Shared.EventBus\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\Shared.Modularity\Shared.Modularity.csproj" />
+    <ProjectReference Include="..\Shared.MultiTenancy\Shared.MultiTenancy.csproj" />
+    <ProjectReference Include="..\Shared.Permissions.Abstractions\Shared.Permissions.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

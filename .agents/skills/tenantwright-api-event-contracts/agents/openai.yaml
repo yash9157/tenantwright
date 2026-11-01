@@ -1,0 +1,4 @@
+interface:
+  display_name: "API and Event Contracts"
+  short_description: "HTTP, DTO, event, and wire-contract safety"
+  default_prompt: "Use $tenantwright-api-event-contracts to design or review an HTTP API, DTO, OpenAPI surface, or distributed event contract."

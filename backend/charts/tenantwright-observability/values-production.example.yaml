@@ -1,0 +1,49 @@
+# Copy this file to an environment-owned values file. Replace every angle-bracket
+# placeholder and every image digest with a verified value from your registry.
+# Never commit credentials; the installer requires the named Kubernetes Secrets.
+production:
+  enabled: true
+  environment: production
+  storageClassName: "<encrypted-storage-class>"
+  restoreDrillReference: "<last-successful-restore-ticket>"
+  objectStorage:
+    provider: s3
+    endpoint: "https://<private-object-storage-endpoint>"
+    region: "<region>"
+    lokiChunksBucket: "<loki-chunks-bucket>"
+    lokiRulerBucket: "<loki-ruler-bucket>"
+    lokiAdminBucket: "<loki-admin-bucket>"
+    tempoTracesBucket: "<tempo-traces-bucket>"
+    workloadIdentityServiceAccountAnnotation: "<cloud-workload-identity-annotation>"
+    workloadIdentityServiceAccountValue: "<cloud-role-or-service-account>"
+  network:
+    kubernetesApiCidrs: ["<api-server-cidr>"]
+    clusterNodeCidrs: ["<cluster-node-cidr>"]
+    objectStorageCidrs: ["<object-storage-cidr>"]
+    remoteWriteCidrs: ["<remote-write-cidr>"]
+    alertReceiverCidrs: ["<alert-receiver-cidr>"]
+    grafanaDatabaseCidrs: ["<grafana-database-cidr>"]
+    grafanaDatabasePort: 5432
+    identityProviderCidrs: ["<identity-provider-cidr>"]
+    ingressNamespaces: [ingress-nginx]
+    workloadNamespaces: [tenantwright, tenantwright-temporal]
+  remoteWrite:
+    url: "https://<remote-write-host>/api/v1/write"
+    secretName: tenantwright-prometheus-remote-write
+    credentialsFile: token
+  grafana:
+    host: "<private-grafana-host>"
+    ingressClassName: "<private-ingress-class>"
+    clusterIssuer: "<production-cluster-issuer>"
+    oidcIssuerUrl: "https://<identity-host>"
+    oidcAuthorizationUrl: "https://<identity-host>/connect/authorize"
+    oidcTokenUrl: "https://<identity-host>/connect/token"
+    oidcApiUrl: "https://<identity-host>/connect/userinfo"
+  backup:
+    schedule: "0 */6 * * *"
+    ttl: 168h
+    restoreDrillReference: "<last-successful-restore-ticket>"
+
+# Use charts/tenantwright-observability/ci/production-values.yaml as the complete
+# key-by-key reference for the child charts. Production must retain that HA and
+# external-state shape while replacing all CI-only endpoints and digests.

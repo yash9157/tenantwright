@@ -1,0 +1,4 @@
+interface:
+  display_name: "TenantWright Platform Operations"
+  short_description: "Review Aspire, Helm, and deployment assets safely"
+  default_prompt: "Use $tenantwright-platform-ops to inspect the owning Aspire, image, chart, environment, or deployment sources and propose a safe, verifiable change."

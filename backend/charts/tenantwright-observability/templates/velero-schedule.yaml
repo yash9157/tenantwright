@@ -1,0 +1,21 @@
+{{- if and .Values.production.enabled .Values.tenantwrightObservability.backupPolicy.enabled }}
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: tenantwright-observability
+  labels:
+    app.kubernetes.io/name: tenantwright-observability
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  annotations:
+    tenantwright.io/restore-drill-reference: {{ .Values.production.backup.restoreDrillReference | quote }}
+spec:
+  schedule: {{ .Values.production.backup.schedule | quote }}
+  template:
+    includedNamespaces:
+      - {{ .Release.Namespace | quote }}
+    snapshotVolumes: true
+    ttl: {{ .Values.production.backup.ttl | quote }}
+    metadata:
+      labels:
+        tenantwright.io/backup-owner: observability
+{{- end }}

@@ -1,0 +1,74 @@
+@page "/Account/Login"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "shield-check", Heading = Model.IsPlatformMode ? "Platform sign-in" : "Sign in", Description = Model.IsPlatformMode ? "Sign in to the platform workspace." : "Sign in to your workspace." })" />
+
+        <form method="post" action="@AuthPageRoutes.SignIn" asp-antiforgery="true" data-auth-form="true" novalidate class="mt-6 space-y-4">
+            <partial name="Partials/_AuthAlert" model="@(new AuthAlertModel { Message = Model.ErrorMessage ?? string.Empty })" />
+            <partial name="Partials/_AuthValidationSummary" />
+            <input type="hidden" asp-for="ReturnUrl" />
+            <input type="hidden" asp-for="Mode" />
+            <input type="hidden" asp-for="Input.DeviceFingerprint" autocomplete="off" />
+
+            @if (!Model.IsPlatformMode)
+            {
+                <partial name="Partials/_AuthField" model="@(new AuthFieldModel { Name = "Input.Tenant", Label = "Organization ID", Value = Model.Input.Tenant, Icon = "building", Placeholder = "e.g. ACME-CORP", Validate = "tenant", Autocomplete = "organization", Helper = "Enter the ID provided by your organization." })" />
+            }
+
+            <partial name="Partials/_AuthField" model="@(new AuthFieldModel { Name = "Input.UserNameOrEmailAddress", Label = "Email or username", Value = Model.Input.UserNameOrEmailAddress, Icon = "id-card", Placeholder = "name@example.com or username", Validate = "login-id", Autocomplete = "username" })" />
+
+            <div data-auth-field="true">
+                <div class="flex items-center justify-between">
+                    <label asp-for="Input.Password" class="auth-label">Password</label>
+                    <a class="text-sm font-medium text-primary transition-colors hover:text-primary-container" href="@AuthPageRoutes.ForgotPassword">Forgot password?</a>
+                </div>
+                <div class="auth-control auth-control--icon" x-data="authPasswordField">
+                    <span class="auth-control__icon">@AuthIcons.Get("lock")</span>
+                    <input asp-for="Input.Password" id="password-input" x-bind:type="passwordType" class="auth-input pr-12" autocomplete="current-password" placeholder="Enter your password" data-auth-validate="current-password" data-auth-required-message="Password is required." />
+                        <partial name="Partials/_AuthPasswordToggle" />
+                </div>
+                <span asp-validation-for="Input.Password" class="auth-error"></span>
+            </div>
+
+            <label class="group flex w-fit cursor-pointer items-center gap-2.5 text-sm">
+                <input asp-for="Input.RememberMe" type="checkbox" class="checkbox-brand cursor-pointer" />
+                <span class="text-on-surface-soft transition-colors group-hover:text-on-surface">Remember this device</span>
+            </label>
+
+            <div class="pt-1">
+                @await Html.PartialAsync("Partials/_AuthActionButton", new AuthActionButtonModel
+                {
+                    Text = "Sign in",
+                    IconSymbol = "arrow_forward",
+                    LoadingText = "Signing in…"
+                })
+            </div>
+        </form>
+
+        <partial name="Partials/_AuthFooter" model="@(new AuthFooterModel { Prompt = "New to the platform?", LinkText = "Create an account", LinkHref = AuthPageRoutes.CreateAccount })" />
+
+        <div class="mt-4 text-center text-sm">
+            <a class="font-medium text-primary transition-colors hover:text-primary-container" href="@Model.ModeSwitchUrl">
+                @(Model.IsPlatformMode ? "Sign in to an organization" : "Sign in as platform staff")
+            </a>
+        </div>
+
+        <div class="mt-5 flex items-center justify-center gap-3 text-[11px] font-medium tracking-wide text-on-surface-soft/70">
+            <span class="inline-flex items-center gap-1.5 text-primary">@AuthIcons.Get("lock", "size-[14px]", "2")<span class="text-on-surface-soft/70">Encrypted</span></span>
+            <span class="size-1 rounded-full bg-outline-strong/50"></span>
+            <span class="inline-flex items-center gap-1.5 text-primary">@AuthIcons.Get("shield-check", "size-[14px]", "2")<span class="text-on-surface-soft/70">Audited</span></span>
+            <span class="size-1 rounded-full bg-outline-strong/50"></span>
+            <span class="inline-flex items-center gap-1.5 text-primary">@AuthIcons.Get("activity", "size-[14px]", "2")<span class="text-on-surface-soft/70">Monitored</span></span>
+        </div>
+    </div>
+</section>

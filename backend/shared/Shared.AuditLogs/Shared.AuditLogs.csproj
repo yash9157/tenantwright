@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared.Modularity\Shared.Modularity.csproj" />
+    <ProjectReference Include="..\Shared.EventContracts\Shared.EventContracts.csproj" />
+    <ProjectReference Include="..\Shared.EventBus\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\Shared.MultiTenancy\Shared.MultiTenancy.csproj" />
+    <ProjectReference Include="..\Shared.CurrentUser\Shared.CurrentUser.csproj" />
+    <ProjectReference Include="..\Shared.Uow\Shared.Uow.csproj" />
+  </ItemGroup>
+
+</Project>

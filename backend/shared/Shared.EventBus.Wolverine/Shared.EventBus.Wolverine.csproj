@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <!--
+    The Wolverine / RabbitMQ transport provider: the only project allowed to reference a Wolverine package. Wolverine
+    owns only RabbitMQ consumption (listeners, inline acknowledgement, in-process retry and native dead-lettering); the
+    provider-neutral Shared.EventBus core and the durable outbox/inbox own trust, idempotency and durability, and
+    outbound dispatch goes through RabbitMQ.Client directly with mandatory routing and publisher confirms. Selected by
+    Shared.EventBus.Hosting when Messaging:Provider=Wolverine.
+  -->
+  <ItemGroup>
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.RabbitMQ" />
+    <PackageReference Include="RabbitMQ.Client" />
+    <ProjectReference Include="..\Shared.EventBus\Shared.EventBus.csproj" />
+  </ItemGroup>
+</Project>

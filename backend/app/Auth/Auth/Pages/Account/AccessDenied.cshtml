@@ -1,0 +1,20 @@
+@page "/Account/AccessDenied"
+@using Auth.Pages.Account.Partials
+@model Auth.Pages.Account.AccessDeniedModel
+@{
+    ViewData["Title"] = "Access denied";
+    Layout = "_AuthShell";
+    ViewData["AuthMaxWidth"] = "max-w-md";
+}
+
+<section class="auth-card overflow-hidden rounded-card">
+    <div class="brand-hairline h-px w-full"></div>
+    <div class="relative p-6 sm:p-8 text-center">
+
+        <partial name="Partials/_AuthHeader" model="@(new AuthHeaderModel { Icon = "alert-circle", Tone = "warning", Heading = "Access denied", Description = "You're signed in, but your account doesn't have permission to view this page. Contact your administrator if you think this is a mistake." })" />
+
+        <div class="mt-6">
+            <a class="btn btn-primary" href="@AuthPageRoutes.SignIn">Back to sign in</a>
+        </div>
+    </div>
+</section>

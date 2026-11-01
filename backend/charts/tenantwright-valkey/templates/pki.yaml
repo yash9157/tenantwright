@@ -1,0 +1,77 @@
+{{- if .Values.valkeyPki.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: tenantwright-valkey-selfsigned
+  labels:
+    app.kubernetes.io/name: tenantwright-valkey
+    app.kubernetes.io/part-of: tenantwright
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tenantwright-valkey-root-ca
+  labels:
+    app.kubernetes.io/name: tenantwright-valkey
+    app.kubernetes.io/part-of: tenantwright
+spec:
+  isCA: true
+  commonName: tenantwright-valkey-root-ca
+  secretName: tenantwright-valkey-root-ca
+  duration: {{ .Values.valkeyPki.rootCertificate.duration | quote }}
+  renewBefore: {{ .Values.valkeyPki.rootCertificate.renewBefore | quote }}
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+    - cert sign
+    - crl sign
+    - digital signature
+  issuerRef:
+    name: tenantwright-valkey-selfsigned
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: tenantwright-valkey-ca
+  labels:
+    app.kubernetes.io/name: tenantwright-valkey
+    app.kubernetes.io/part-of: tenantwright
+spec:
+  ca:
+    secretName: tenantwright-valkey-root-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tenantwright-valkey-server
+  labels:
+    app.kubernetes.io/name: tenantwright-valkey
+    app.kubernetes.io/part-of: tenantwright
+spec:
+  secretName: tenantwright-valkey-tls
+  commonName: tenantwright-valkey
+  duration: {{ .Values.valkeyPki.serverCertificate.duration | quote }}
+  renewBefore: {{ .Values.valkeyPki.serverCertificate.renewBefore | quote }}
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+    - server auth
+  dnsNames:
+    - tenantwright-valkey
+    - tenantwright-valkey.{{ .Release.Namespace }}
+    - tenantwright-valkey.{{ .Release.Namespace }}.svc
+    - tenantwright-valkey.{{ .Release.Namespace }}.svc.cluster.local
+    - "*.tenantwright-valkey-headless.{{ .Release.Namespace }}.svc.cluster.local"
+  issuerRef:
+    name: tenantwright-valkey-ca
+    kind: Issuer
+    group: cert-manager.io
+{{- end }}

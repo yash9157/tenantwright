@@ -1,0 +1,42 @@
+{{- if and .Values.prometheus.enabled .Values.prometheus.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tenantwright-prometheus
+  namespace: {{ .Values.namespace }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.prometheus.ingress.clusterIssuer | quote }}
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: {{ .Values.prometheus.ingress.authSecretName | quote }}
+    nginx.ingress.kubernetes.io/auth-realm: "TenantWright metrics authentication required"
+spec:
+  ingressClassName: {{ .Values.prometheus.ingress.className | quote }}
+  rules:
+    - host: {{ .Values.prometheus.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.prometheus.ingress.path | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: tenantwright-prometheus
+                port: { name: http }
+  tls:
+    - hosts: [{{ .Values.prometheus.ingress.host | quote }}]
+      secretName: {{ .Values.prometheus.ingress.tlsSecretName | quote }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenantwright-prometheus-ingress
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector: { matchLabels: { app: tenantwright-prometheus } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.prometheus.ingress.ingressNamespace | quote }}
+      ports: [{ protocol: TCP, port: 9090 }]
+{{- end }}

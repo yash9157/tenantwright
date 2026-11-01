@@ -1,0 +1,89 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tenantwright-temporal.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "tenantwright-temporal.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: temporal
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: temporal
+      ports:
+        - { protocol: TCP, port: 6933 }
+        - { protocol: TCP, port: 6934 }
+        - { protocol: TCP, port: 6935 }
+        - { protocol: TCP, port: 6939 }
+        - { protocol: TCP, port: 7233 }
+        - { protocol: TCP, port: 7234 }
+        - { protocol: TCP, port: 7235 }
+        - { protocol: TCP, port: 7239 }
+        - { protocol: TCP, port: 9090 }
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.workflowsNamespace | quote }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tenantwright-workflows
+      ports:
+        - protocol: TCP
+          port: 7233
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.observabilityNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: 9090
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: temporal
+      ports:
+        - { protocol: TCP, port: 6933 }
+        - { protocol: TCP, port: 6934 }
+        - { protocol: TCP, port: 6935 }
+        - { protocol: TCP, port: 6939 }
+        - { protocol: TCP, port: 7233 }
+        - { protocol: TCP, port: 7234 }
+        - { protocol: TCP, port: 7235 }
+        - { protocol: TCP, port: 7239 }
+        - { protocol: TCP, port: 9090 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+{{- range .Values.networkPolicy.postgresqlCidrs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.networkPolicy.postgresqlPort }}
+{{- end }}
+{{- range .Values.networkPolicy.httpsCidrs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . | quote }}
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
+{{- end }}

@@ -1,0 +1,121 @@
+<Solution>
+  <Folder Name="/app/">
+    <Project Path="app/Auth/Auth.Domain.Shared/Auth.Domain.Shared.csproj" />
+    <Project Path="app/Auth/Auth/Auth.csproj" Id="f12f8a18-a44b-417f-88d2-febe5b783f70" />
+  </Folder>
+  <Folder Name="/gateway/">
+    <Project Path="gateway/ApiGateway/ApiGateway.csproj" Id="8a78f7b5-f77a-47ce-a7c8-b2bc28ce0044" />
+  </Folder>
+  <Folder Name="/orchestration/">
+    <Project Path="orchestration/TenantWright.AppHost/TenantWright.AppHost.csproj" />
+    <Project Path="orchestration/TenantWright.ServiceDefaults/TenantWright.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/RepoIndex.Core/RepoIndex.Core.csproj" />
+    <Project Path="tools/RepoIndexer/RepoIndexer.csproj" />
+    <Project Path="tools/RepoIndexMcp/RepoIndexMcp.csproj" />
+  </Folder>
+  <Folder Name="/services/" />
+  <Folder Name="/services/Identity/">
+    <Project Path="services/Identity/Identity.Application.Contracts/Identity.Application.Contracts.csproj" Id="dd705e45-849c-46f5-bfd8-9374c16de5d9" />
+    <Project Path="services/Identity/Identity.Application/Identity.Application.csproj" />
+    <Project Path="services/Identity/Identity.Domain.Shared/Identity.Domain.Shared.csproj" Id="489e92eb-7bdb-4f40-8f51-b16c4737f625" />
+    <Project Path="services/Identity/Identity.Domain/Identity.Domain.csproj" Id="78cb1daa-e21c-476e-9867-9f5f48d896ca" />
+    <Project Path="services/Identity/Identity.EntityFrameworkCore/Identity.EntityFrameworkCore.csproj" Id="9ecca827-207f-4fbd-b266-e2d53e8393dd" />
+    <Project Path="services/Identity/Identity/Identity.csproj" Id="4230f25b-54c7-4dbc-9647-aff6ea6418e5" />
+  </Folder>
+  <Folder Name="/services/Tenant/">
+    <Project Path="services/Tenant/Tenant.Application.Contracts/Tenant.Application.Contracts.csproj" />
+    <Project Path="services/Tenant/Tenant.Application/Tenant.Application.csproj" />
+    <Project Path="services/Tenant/Tenant.Domain.Shared/Tenant.Domain.Shared.csproj" />
+    <Project Path="services/Tenant/Tenant.Domain/Tenant.Domain.csproj" />
+    <Project Path="services/Tenant/Tenant.EntityFrameworkCore/Tenant.EntityFrameworkCore.csproj" />
+    <Project Path="services/Tenant/Tenant/Tenant.csproj" />
+  </Folder>
+  <Folder Name="/services/Permissions/">
+    <Project Path="services/Permissions/Permissions.Application.Contracts/Permissions.Application.Contracts.csproj" />
+    <Project Path="services/Permissions/Permissions.Application/Permissions.Application.csproj" />
+    <Project Path="services/Permissions/Permissions.Domain.Shared/Permissions.Domain.Shared.csproj" />
+    <Project Path="services/Permissions/Permissions.Domain/Permissions.Domain.csproj" />
+    <Project Path="services/Permissions/Permissions.EntityFrameworkCore/Permissions.EntityFrameworkCore.csproj" />
+    <Project Path="services/Permissions/Permissions/Permissions.csproj" />
+  </Folder>
+  <Folder Name="/services/AuditLogs/">
+    <Project Path="services/AuditLogs/AuditLogs.Application.Contracts/AuditLogs.Application.Contracts.csproj" />
+    <Project Path="services/AuditLogs/AuditLogs.Application/AuditLogs.Application.csproj" />
+    <Project Path="services/AuditLogs/AuditLogs.Domain.Shared/AuditLogs.Domain.Shared.csproj" />
+    <Project Path="services/AuditLogs/AuditLogs.Domain/AuditLogs.Domain.csproj" />
+    <Project Path="services/AuditLogs/AuditLogs.EntityFrameworkCore/AuditLogs.EntityFrameworkCore.csproj" />
+    <Project Path="services/AuditLogs/AuditLogs/AuditLogs.csproj" />
+  </Folder>
+  <Folder Name="/services/Notifications/">
+    <Project Path="services/Notifications/Notifications.Application.Contracts/Notifications.Application.Contracts.csproj" />
+    <Project Path="services/Notifications/Notifications.Application/Notifications.Application.csproj" />
+    <Project Path="services/Notifications/Notifications.Domain.Shared/Notifications.Domain.Shared.csproj" />
+    <Project Path="services/Notifications/Notifications.Domain/Notifications.Domain.csproj" />
+    <Project Path="services/Notifications/Notifications.EntityFrameworkCore/Notifications.EntityFrameworkCore.csproj" />
+    <Project Path="services/Notifications/Notifications/Notifications.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AuditLogs.Tests/AuditLogs.Tests.csproj" />
+    <Project Path="tests/Auth.Tests/Auth.Tests.csproj" />
+    <Project Path="tests/Gateway.Tests/Gateway.Tests.csproj" />
+    <Project Path="tests/TenantWright.AppHost.Tests/TenantWright.AppHost.Tests.csproj" />
+    <Project Path="tests/Identity.Tests/Identity.Tests.csproj" />
+    <Project Path="tests/Shared.AuditLogs.Tests/Shared.AuditLogs.Tests.csproj" />
+    <Project Path="tests/Shared.Autofac.Tests/Shared.Autofac.Tests.csproj" />
+    <Project Path="tests/Shared.BackgroundTasks.Tests/Shared.BackgroundTasks.Tests.csproj" />
+    <Project Path="tests/Shared.BackgroundTasks.Hangfire.Tests/Shared.BackgroundTasks.Hangfire.Tests.csproj" />
+    <Project Path="tests/Shared.Domain.Tests/Shared.Domain.Tests.csproj" />
+    <Project Path="tests/Shared.EntityFrameworkCore.Tests/Shared.EntityFrameworkCore.Tests.csproj" />
+    <Project Path="tests/Shared.EventContracts.Tests/Shared.EventContracts.Tests.csproj" />
+    <Project Path="tests/Shared.EventBus.Tests/Shared.EventBus.Tests.csproj" />
+    <Project Path="tests/Shared.EventBus.Wolverine.Tests/Shared.EventBus.Wolverine.Tests.csproj" />
+    <Project Path="tests/Shared.Modularity.Tests/Shared.Modularity.Tests.csproj" />
+    <Project Path="tests/Shared.MultiTenancy.Tests/Shared.MultiTenancy.Tests.csproj" />
+    <Project Path="tests/Shared.Security.Tests/Shared.Security.Tests.csproj" />
+    <Project Path="tests/Shared.Valkey.IntegrationTests/Shared.Valkey.IntegrationTests.csproj" />
+    <Project Path="tests/Shared.CurrentUser.Tests/Shared.CurrentUser.Tests.csproj" />
+    <Project Path="tests/Shared.Data.Tests/Shared.Data.Tests.csproj" />
+    <Project Path="tests/Shared.BlobStoring.Tests/Shared.BlobStoring.Tests.csproj" />
+    <Project Path="tests/Permissions.Tests/Permissions.Tests.csproj" />
+    <Project Path="tests/Shared.Permissions.Tests/Shared.Permissions.Tests.csproj" />
+    <Project Path="tests/Tenant.Tests/Tenant.Tests.csproj" />
+    <Project Path="tests/Notifications.Tests/Notifications.Tests.csproj" />
+    <Project Path="tests/RepoIndexMcp.Tests/RepoIndexMcp.Tests.csproj" />
+    <Project Path="tests/Workflows.Tests/Workflows.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/Workflows/">
+    <Project Path="services/Workflows/Workflows.Application.Contracts/Workflows.Application.Contracts.csproj" />
+    <Project Path="services/Workflows/Workflows.Application/Workflows.Application.csproj" />
+    <Project Path="services/Workflows/Workflows.EntityFrameworkCore/Workflows.EntityFrameworkCore.csproj" />
+    <Project Path="services/Workflows/Workflows/Workflows.csproj" />
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="shared/Shared.AspNetCore.ProblemDetails/Shared.AspNetCore.ProblemDetails.csproj" />
+    <Project Path="shared/Shared.AuditLogs/Shared.AuditLogs.csproj" />
+    <Project Path="shared/Shared.AspNetCore.Host/Shared.AspNetCore.Host.csproj" />
+    <Project Path="shared/Shared.Autofac/Shared.Autofac.csproj" Id="64c241c5-5dbb-453b-b868-8189ef85c046" />
+    <Project Path="shared/Shared.BackgroundTasks/Shared.BackgroundTasks.csproj" />
+    <Project Path="shared/Shared.BackgroundTasks.Hangfire/Shared.BackgroundTasks.Hangfire.csproj" />
+    <Project Path="shared/Shared.Caching/Shared.Caching.csproj" Id="cacc79cb-19b4-45a1-b62c-662041823cc2" />
+    <Project Path="shared/Shared.Permissions.Abstractions/Shared.Permissions.Abstractions.csproj" />
+    <Project Path="shared/Shared.Permissions/Shared.Permissions.csproj" />
+    <Project Path="shared/Shared.CurrentUser/Shared.CurrentUser.csproj" Id="e19e086d-a187-4074-9fed-9510cc2df60f" />
+    <Project Path="shared/Shared.Data/Shared.Data.csproj" Id="03e2aed5-3e3e-4ddb-993a-2d0473822130" />
+    <Project Path="shared/Shared.DistributedLocking/Shared.DistributedLocking.csproj" />
+    <Project Path="shared/Shared.Domain.Shared/Shared.Domain.Shared.csproj" />
+    <Project Path="shared/Shared.Domain/Shared.Domain.csproj" Id="ea3e528a-4e81-4270-b80d-eae1366d9119" />
+    <Project Path="shared/Shared.EntityFrameworkCore/Shared.EntityFrameworkCore.csproj" Id="4ed4f38a-a7fd-4a5d-9552-ab07fa99b7ba" />
+    <Project Path="shared/Shared.EventContracts/Shared.EventContracts.csproj" />
+    <Project Path="shared/Shared.EventBus/Shared.EventBus.csproj" Id="c7568849-4c76-469b-a847-ba4dc3e96cca" />
+    <Project Path="shared/Shared.EventBus.Hosting/Shared.EventBus.Hosting.csproj" />
+    <Project Path="shared/Shared.EventBus.MassTransit/Shared.EventBus.MassTransit.csproj" />
+    <Project Path="shared/Shared.EventBus.Wolverine/Shared.EventBus.Wolverine.csproj" />
+    <Project Path="shared/Shared.Modularity/Shared.Modularity.csproj" Id="aa414910-472c-43cf-9eb3-304f9602ab71" />
+    <Project Path="shared/Shared.MultiTenancy/Shared.MultiTenancy.csproj" />
+    <Project Path="shared/Shared.BlobStoring/Shared.BlobStoring.csproj" />
+    <Project Path="shared/Shared.Security/Shared.Security.csproj" Id="5115ffac-7bb2-4d58-b7ef-7061f1aa0bf8" />
+    <Project Path="shared/Shared.Uow/Shared.Uow.csproj" Id="58634fbf-b4d5-42a6-ab51-492111e3ba3d" />
+  </Folder>
+</Solution>

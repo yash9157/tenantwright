@@ -1,0 +1,9 @@
+apiVersion: v2
+name: tenantwright-common
+description: >-
+  Shared Helm templates for the TenantWright service charts. Library chart: it renders
+  nothing on its own and is never installed as a release. It exists so definitions
+  used by every service live in ONE place instead of being copied per chart, where
+  they silently drift.
+type: library
+version: 0.1.0

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\shared\Shared.AuditLogs\Shared.AuditLogs.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.Caching\Shared.Caching.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.DistributedLocking\Shared.DistributedLocking.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.EventContracts\Shared.EventContracts.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.EventBus\Shared.EventBus.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.Modularity\Shared.Modularity.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.MultiTenancy\Shared.MultiTenancy.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.CurrentUser\Shared.CurrentUser.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.Permissions\Shared.Permissions.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.Uow\Shared.Uow.csproj" />
+    <ProjectReference Include="..\Tenant.Domain\Tenant.Domain.csproj" />
+    <ProjectReference Include="..\Tenant.Domain.Shared\Tenant.Domain.Shared.csproj" />
+    <ProjectReference Include="..\Tenant.EntityFrameworkCore\Tenant.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\Tenant.Application.Contracts\Tenant.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\Identity\Identity.Domain.Shared\Identity.Domain.Shared.csproj" />
+    <ProjectReference Include="..\..\Permissions\Permissions.Domain.Shared\Permissions.Domain.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

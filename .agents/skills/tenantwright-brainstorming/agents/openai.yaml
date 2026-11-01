@@ -1,0 +1,4 @@
+interface:
+  display_name: "TenantWright Brainstorming"
+  short_description: "Frame uncertain SaaS decisions with evidence"
+  default_prompt: "Use $tenantwright-brainstorming to inspect the current source, compare credible options, and produce a concise decision brief for this multi-tenant SaaS question."

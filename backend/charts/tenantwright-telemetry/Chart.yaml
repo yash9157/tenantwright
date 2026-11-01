@@ -1,0 +1,6 @@
+apiVersion: v2
+name: tenantwright-telemetry
+description: Standalone Fluent Bit and OpenTelemetry pipeline for external OpenSearch
+type: application
+version: 0.1.0
+appVersion: "1.0"
