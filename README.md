@@ -158,6 +158,8 @@ Every provider must meet these rules:
 
 ### Notification providers
 
+**Planned: Omnichannel notifications.** Coordinate email, SMS, WhatsApp, and push through a single notification workflow.
+
 | Channel | Provider | Status |
 |---|---|---|
 | Email | SMTP (MailKit) | Available |
