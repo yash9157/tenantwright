@@ -1,0 +1,101 @@
+name: Owner-approved PR CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Pull request number
+        required: true
+        type: string
+      head_sha:
+        description: Full commit SHA you reviewed
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  verify-revision:
+    if: github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+      statuses: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ inputs.pull_request }}
+      APPROVED_SHA: ${{ inputs.head_sha }}
+    steps:
+      - name: Verify the approved revision and mark checks pending
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ && "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" |
+            jq -e --arg sha "$APPROVED_SHA" --arg repo "$GITHUB_REPOSITORY" \
+              '.state == "open" and .base.repo.full_name == $repo and .base.ref == "main" and .head.sha == $sha' >/dev/null
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$APPROVED_SHA" \
+            -f context='TenantWright / owner-approved CI' -f state=pending \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+
+  validate:
+    needs: verify-revision
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: refs/pull/${{ inputs.pull_request }}/head
+          persist-credentials: false
+      - name: Confirm the checked-out commit matches the approved revision
+        shell: bash
+        env:
+          APPROVED_SHA: ${{ inputs.head_sha }}
+        run: test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Build solution
+        working-directory: backend
+        run: dotnet build TenantWright.slnx --configuration Release
+      - name: Run solution tests
+        working-directory: backend
+        run: dotnet test TenantWright.slnx --configuration Release --no-build --logger trx
+      - name: Check event contract placement
+        shell: pwsh
+        run: ./backend/scripts/verify-eto-placement.ps1
+      - name: Lint and render application charts
+        shell: pwsh
+        run: ./backend/scripts/verify-messaging-charts.ps1
+
+  publish-result:
+    if: always() && needs.verify-revision.result == 'success'
+    needs: [verify-revision, validate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+      statuses: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ inputs.pull_request }}
+      APPROVED_SHA: ${{ inputs.head_sha }}
+      VALIDATION_RESULT: ${{ needs.validate.result }}
+    steps:
+      - name: Publish the result for the approved revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=failure
+          if [[ "$VALIDATION_RESULT" == success ]] &&
+             gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" |
+               jq -e --arg sha "$APPROVED_SHA" '.state == "open" and .base.ref == "main" and .head.sha == $sha' >/dev/null; then
+            state=success
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$APPROVED_SHA" \
+            -f context='TenantWright / owner-approved CI' -f state="$state" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+          [[ "$state" == success ]]

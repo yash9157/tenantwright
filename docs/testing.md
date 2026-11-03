@@ -53,3 +53,17 @@ Several tests and scripts enforce invariants. When they fail, fix the code rathe
 - `scripts/verify-messaging-charts.ps1`, `scripts/verify-helm-environment-layout.ps1`, `scripts/verify-environment-guardrails.ps1`: offline chart checks. These need `helm` (`tools/helm.exe` is checked in) and the PowerShell YAML module.
 
 `scripts/run-quality-gates.ps1` runs the full gate set: tests, the ETO placement check, and optional smoke and performance-budget checks. `scripts/run-auth-token-permission-smoke.ps1` and `scripts/verify-security.ps1` call running services, so they need a live stack.
+
+## Maintainer-approved pull request CI
+
+The owner starts CI after reviewing a pull request to `main`. In GitHub Actions,
+open **Owner-approved PR CI**, choose **Run workflow** from `main`, and enter the
+PR number and full head commit SHA. The same procedure applies to the owner's
+PRs. Review changes to workflow files as part of the PR. Keep repository write
+access with the sole maintainer and leave fork-proposed workflows unapproved.
+
+The run builds the solution, runs the test suite on a Docker-capable runner, and
+checks event placement and application charts. Licensed MassTransit integration
+tests skip under their existing opt-in rules. The workflow uses no repository
+secrets. A separate job reports the result for the reviewed commit. After a new
+push, review the new commit and start a new run before merging.
