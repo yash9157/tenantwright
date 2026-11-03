@@ -1,4 +1,4 @@
-# TenantWright
+# TenantWright — .NET 10 Multi-Tenant SaaS Starter Template
 
 A multi-tenant .NET 10 microservice template. It has an OAuth2/OIDC auth server, a YARP gateway, six domain services, transactional messaging with signed provenance, and opt-in per-tenant databases. It runs locally with one .NET Aspire command and deploys with Helm.
 
