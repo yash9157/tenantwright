@@ -20,4 +20,4 @@ Use a PR-only ruleset with no bypass actors. The sole writer is the repository o
 2. Bootstrap the trusted workflow through a maintainer PR. Verify that a fork PR and an owner PR remain untested until approved, that failing tests block merge, and that updating a PR requires fresh approval and a new successful check.
 3. Require the verified check and document the maintainer workflow in the testing guide.
 
-Bootstrap remains pending. Requiring a check before its trusted workflow is available would block the bootstrap PR.
+The bootstrap PR was merged before activating the required check. The workflow is active on main, the ruleset requires the GitHub Actions status on an up-to-date branch, and fork-proposed workflows require maintainer approval. Live verification is pending the owner dispatching CI for a reviewed revision.
