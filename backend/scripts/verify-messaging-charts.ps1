@@ -8,6 +8,8 @@ $services = @(
 )
 $trustCatalog = Join-Path $repoRoot 'charts/tenantwright-common/files/messaging.values.yaml'
 $verificationDigest = 'sha256:' + ('0' * 64)
+# Application chart dependencies are local. Ignore the caller's Helm repositories.
+$repositoryConfig = Join-Path ([IO.Path]::GetTempPath()) "tenantwright-helm-$([guid]::NewGuid()).yaml"
 
 function Assert-WorkloadRender {
     param(
@@ -71,6 +73,11 @@ function Assert-SmtpEgressBoundary {
 
 foreach ($service in $services) {
     $chart = Join-Path $repoRoot "charts/tenantwright-$service"
+    & helm dependency build $chart --skip-refresh --repository-config $repositoryConfig
+    if ($LASTEXITCODE -ne 0) {
+        throw "Helm dependency build failed for tenantwright-$service."
+    }
+
     & helm lint $chart --set "image.digest=$verificationDigest"
     if ($LASTEXITCODE -ne 0) {
         throw "Helm lint failed for tenantwright-$service."
