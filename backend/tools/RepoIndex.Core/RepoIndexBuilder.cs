@@ -190,7 +190,10 @@ public sealed class RepoIndexBuilder
             .Descendants("ProjectReference")
             .Select(element => (string?)element.Attribute("Include"))
             .Where(static include => !string.IsNullOrWhiteSpace(include))
-            .Select(include => RepositoryPaths.NormalizeRelative(_repoRoot, Path.GetFullPath(Path.Combine(Path.GetDirectoryName(absoluteProjectPath)!, include!))))
+            .Select(include => RepositoryPaths.ToPlatformPath(include!.Replace('\\', '/')))
+            .Select(reference => RepositoryPaths.NormalizeRelative(
+                _repoRoot,
+                Path.GetFullPath(Path.Combine(Path.GetDirectoryName(absoluteProjectPath)!, reference))))
             .OrderBy(static reference => reference, StringComparer.Ordinal)
             .ToArray();
 
