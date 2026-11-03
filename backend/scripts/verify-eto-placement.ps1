@@ -49,7 +49,8 @@ function Get-ExpectedLocationClass {
     return "Distributed ETOs must follow ADR-008 service or platform ownership"
 }
 
-$trackedFiles = @(& git ls-files -- "*.cs")
+$backendRoot = Split-Path -Parent $PSScriptRoot
+$trackedFiles = @(& git -C $backendRoot ls-files -- "*.cs")
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to enumerate tracked C# files with git ls-files."
 }
@@ -63,11 +64,12 @@ foreach ($file in $trackedFiles) {
         continue
     }
 
-    if (-not (Test-Path $file)) {
+    $absolutePath = Join-Path $backendRoot $file
+    if (-not (Test-Path -LiteralPath $absolutePath)) {
         continue
     }
 
-    $content = Get-Content -Path $file -Raw
+    $content = Get-Content -LiteralPath $absolutePath -Raw
     $matches = $declarationPattern.Matches($content)
     if ($matches.Count -eq 0) {
         continue

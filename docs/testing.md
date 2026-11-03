@@ -57,7 +57,7 @@ Several tests and scripts enforce invariants. When they fail, fix the code rathe
 ## Maintainer-approved pull request CI
 
 The owner starts CI after reviewing a pull request to `main`. In GitHub Actions,
-open **Owner-approved PR CI**, choose **Run workflow** from `main`, and enter the
+open **Pull Request Validation**, choose **Run workflow** from `main`, and enter the
 PR number and full head commit SHA. The same procedure applies to the owner's
 PRs. Review changes to workflow files as part of the PR. Keep repository write
 access with the sole maintainer and leave fork-proposed workflows unapproved.

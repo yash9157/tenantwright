@@ -1,4 +1,4 @@
-name: Owner-approved PR CI
+name: Pull Request Validation
 
 on:
   workflow_dispatch:
