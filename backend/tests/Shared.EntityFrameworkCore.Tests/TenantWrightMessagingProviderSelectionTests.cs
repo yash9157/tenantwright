@@ -97,9 +97,11 @@ public sealed class TenantWrightMessagingProviderSelectionTests
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(TenantWrightMessageCatalog));
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IValidateOptions<MessagingOptions>));
 
-        // Wolverine has no broker redelivery or replay custody to prove, so those custody shapes stay rejected.
+        // Wolverine accepts protected replay, but broker-delayed redelivery custody stays rejected.
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(ITenantWrightRedeliveryCustodyVerifier));
-        Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(ITenantWrightReplayCustodyVerifier));
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(ITenantWrightReplayCustodyVerifier));
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IProtectedReplayTransport));
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IProtectedReplayIdempotencyStore));
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IBus));
     }
 

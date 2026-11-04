@@ -12,7 +12,7 @@
 
 ## Provider Boundaries
 
-- Wolverine 6.51 is isolated to `Shared.EventBus.Wolverine`. It consumes from RabbitMQ with immediate in-process retries and native dead-lettering. It does not provide broker delayed redelivery, signed terminal custody, or protected replay.
+- Wolverine 6.51 is isolated to `Shared.EventBus.Wolverine`. It consumes with in-process retries and native quarantine; exhausted handler failures get signed terminal custody through a confirmed publication before acknowledgment. The adapter provides `WolverineTerminalMessageReader`, protected replay transport and a replay custody verifier. It does not provide broker delayed redelivery. Operator composition must supply terminal lookup, authorization, audit and the destination service's shared-database replay ledger. A replay authorizes one consumer attempt; failure needs fresh authorization and an ID. Never upgrade unsigned quarantine or bypass origin expiry/key revocation. See `docs/messaging.md` for composition and recovery semantics.
 - Handler failures that clear without an operator (a tenant cache not yet converged, a lock another replica holds) implement `ITenantWrightTransientMessageFailure`. Wolverine retries them inline on the longer `TransientRetryCooldowns` schedule (1/5/15/30/60 s), because it has no message store for `ScheduleRetry`. MassTransit's delayed redelivery already covers them. Never mark security, validation, or permanent failures.
 - MassTransit 9.2 is isolated to `Shared.EventBus.MassTransit` and requires `MT_LICENSE` or `MT_LICENSE_PATH`.
 - Provider adapters do not own trust, tenant restoration, durable inbox/outbox state, or contract policy.

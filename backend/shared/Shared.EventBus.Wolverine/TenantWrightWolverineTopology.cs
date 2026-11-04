@@ -13,8 +13,11 @@ namespace Shared.EventBus.Wolverine;
 /// that exchange to its queue.</item>
 /// <item>An event is published to the durable fanout exchange named by its contract identity; every consuming
 /// endpoint's owner binds that exchange to its own queue.</item>
+/// <item>Every endpoint also binds its own exchange, including event endpoints, for protected replay to exactly that
+/// endpoint rather than every subscriber.</item>
 /// <item>Each endpoint queue dead-letters natively (RabbitMQ <c>x-dead-letter-exchange</c>, at-least-once) to its own
-/// quorum <c>{endpoint}-dead-letter</c> queue through the exchange of the same name.</item>
+/// quorum <c>{endpoint}-dead-letter</c> queue through the exchange of the same name. Exhausted handler failures are
+/// signed and confirmed to that exchange before acknowledgment; native rejection remains unsigned quarantine.</item>
 /// </list>
 /// The names match the MassTransit provider's endpoint, command and event exchange names. The dead-letter arguments
 /// do not, so an endpoint queue a MassTransit host declared must be recreated before a Wolverine host can own it;

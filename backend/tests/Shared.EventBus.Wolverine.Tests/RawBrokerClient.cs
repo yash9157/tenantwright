@@ -50,6 +50,18 @@ public sealed class RawBrokerClient(string hostName, int port, string virtualHos
         await channel.ExchangeDeclareAsync(exchange, ExchangeType.Fanout, durable: true, autoDelete: false);
     }
 
+    public async Task DeleteExchangeAsync(string exchange)
+    {
+        await using var channel = await (await ConnectAsync()).CreateChannelAsync();
+        await channel.ExchangeDeleteAsync(exchange);
+    }
+
+    public async Task BindAsync(string queue, string exchange)
+    {
+        await using var channel = await (await ConnectAsync()).CreateChannelAsync();
+        await channel.QueueBindAsync(queue, exchange, string.Empty);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_connection is not null)

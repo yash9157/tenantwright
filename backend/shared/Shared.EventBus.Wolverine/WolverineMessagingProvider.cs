@@ -12,9 +12,8 @@ namespace Shared.EventBus.Wolverine;
 /// with mandatory routing and publisher confirms.
 /// </summary>
 /// <remarks>
-/// The provider registers no redelivery or replay custody verifier, so redelivered and replayed custody stay rejected
-/// on a Wolverine host. Broker-level delayed redelivery, signed terminal custody and protected replay are capabilities
-/// of the MassTransit provider only.
+/// The provider supplies signed terminal custody and protected replay. Broker-level delayed redelivery remains
+/// unsupported: no redelivery custody verifier is registered, and unsigned native quarantine is never replay authority.
 /// </remarks>
 public sealed class WolverineMessagingProvider : ITenantWrightMessagingProvider
 {

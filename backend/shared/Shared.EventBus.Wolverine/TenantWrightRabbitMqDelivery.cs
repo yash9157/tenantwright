@@ -25,19 +25,12 @@ internal sealed record TenantWrightRabbitMqDelivery(
     TenantWrightTransportEvidence TransportEvidence);
 
 /// <summary>
-/// Evidence that RabbitMQ dead-lettered this delivery at least once (an <c>x-death</c> header). The Wolverine provider
-/// performs no broker redelivery of its own, so such a delivery can only be a dead-lettered message moved back into a
-/// receive queue; with no redelivery custody verifier registered, the neutral verifier rejects it.
+/// Adapter-captured evidence of broker death history. Native dead letters moved directly back to a receive queue
+/// remain rejected; a protected replay must be a fresh publication without broker history.
 /// </summary>
-internal sealed class RabbitMqDeadLetterHistoryEvidence : TenantWrightTransportEvidence
+internal sealed class WolverineRabbitMqTransportEvidence(bool hasRedeliveryHistory) : TenantWrightTransportEvidence
 {
-    public static RabbitMqDeadLetterHistoryEvidence Instance { get; } = new();
-
-    private RabbitMqDeadLetterHistoryEvidence()
-    {
-    }
-
-    public override bool HasRedeliveryHistory => true;
+    public override bool HasRedeliveryHistory { get; } = hasRedeliveryHistory;
 }
 
 /// <summary>
@@ -88,9 +81,7 @@ internal sealed class TenantWrightRabbitMqEnvelopeMapper : IRabbitMqEnvelopeMapp
             messageId,
             incoming.UserId,
             ReadTrustHeaders(headers),
-            headers?.ContainsKey(DeathHeader) == true
-                ? RabbitMqDeadLetterHistoryEvidence.Instance
-                : NoTenantWrightTransportEvidence.Instance);
+            new WolverineRabbitMqTransportEvidence(headers?.ContainsKey(DeathHeader) == true));
     }
 
     public void MapEnvelopeToOutgoing(Envelope envelope, IBasicProperties outgoing) =>

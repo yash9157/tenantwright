@@ -48,6 +48,13 @@ Several tests and scripts enforce invariants. When they fail, fix the code rathe
 
 - `tests/Shared.EventContracts.Tests`: contract attributes, JSON registration and the catalog.
 - `tests/Shared.EventBus.Tests`: topology, trust, options validation, provider configuration, and the inbound pipeline.
+- `tests/Shared.EventBus.Wolverine.Tests`: mapper/terminal/replay denial tests plus
+  RabbitMQ/PostgreSQL recovery tests. These cover signed failed-handler custody,
+  operator authorization, single-use replay IDs, restored tenant context,
+  endpoint-specific event replay, failed replay attempts and recovery after the
+  terminal exchange disappears, including shutdown and replacement-consumer recovery.
+  The tests use isolated vhosts and databases and
+  test-only operator policies; they do not configure a deployed recovery tool.
 - `tests/TenantWright.AppHost.Tests`: AppHost services, messaging principals and broker definitions stay in step with `TenantWrightMessagingTopology`.
 - `scripts/verify-eto-placement.ps1`: `*Eto` types live only in approved assemblies.
 - `scripts/verify-messaging-charts.ps1`, `scripts/verify-helm-environment-layout.ps1`, `scripts/verify-environment-guardrails.ps1`: offline chart checks. These need `helm` (`tools/helm.exe` is checked in) and the PowerShell YAML module.
