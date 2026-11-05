@@ -29,7 +29,7 @@ public sealed class SmsChannelDeliveryHandler : IChannelDeliveryHandler, ITransi
     {
         if (context.RecipientType != NotificationRecipientType.PhoneNumber)
         {
-            return ChannelDeliveryResult.Failed("invalid_sms_recipient_type");
+            return ChannelDeliveryResult.PermanentRejection("invalid_sms_recipient_type");
         }
 
         var rendered = await _templateRenderer.RenderAsync(
@@ -38,6 +38,6 @@ public sealed class SmsChannelDeliveryHandler : IChannelDeliveryHandler, ITransi
             cancellationToken);
         var message = NotificationTextFormatter.ToPlainText(rendered.Content);
         var outcome = await _sender.SendAsync(context.RecipientValue, message, cancellationToken);
-        return ChannelDeliveryResult.Success(providerMessageId: outcome.ProviderMessageId, providerConfigId: outcome.ProviderConfigId);
+        return ChannelDeliveryResult.FromProvider(outcome);
     }
 }

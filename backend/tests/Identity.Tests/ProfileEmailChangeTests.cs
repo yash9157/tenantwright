@@ -69,9 +69,9 @@ public sealed class ProfileEmailChangeTests
 
         var request = Assert.IsType<NotificationSendRequestedTenantEto>(Assert.Single(publisher.Published).EventData);
         Assert.Equal(tenantId, request.TenantId);
-        Assert.Equal("Identity.EmailVerificationLink", request.TemplateName);
-        Assert.Contains(request.Recipients, x => x.RecipientValue == "new.profile.email@example.test");
-        Assert.StartsWith($"{AllowedBaseUrl}/auth/email-verification/confirm?", request.TemplateModel["link"], StringComparison.Ordinal);
+        Assert.Equal("Identity.EmailVerificationLink", Assert.Single(request.DeliveryPlan.Steps).TemplateName);
+        Assert.Contains(request.Recipients.SelectMany(recipient => recipient.Destinations), x => x.RecipientValue == "new.profile.email@example.test");
+        Assert.StartsWith($"{AllowedBaseUrl}/auth/email-verification/confirm?", request.DeliveryPlan.Steps[0].TemplateModel["link"], StringComparison.Ordinal);
     }
 
     [Fact]

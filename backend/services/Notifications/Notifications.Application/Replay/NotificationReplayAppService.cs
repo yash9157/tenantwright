@@ -1,3 +1,4 @@
+using Notifications.Application.Dispatches;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using Notifications.Application.Contracts.Delivery;
@@ -73,6 +74,7 @@ public sealed class NotificationReplayAppService : INotificationReplayAppService
         }
 
         EnsureTenantAccess(notification.TenantId);
+        await NotificationDispatchRecoveryGate.RejectDetachedCloneAsync(_notificationRepository, notification, cancellationToken);
 
         var recipientQueryable = await _recipientRepository.GetQueryableAsync();
         var recipients = await recipientQueryable
@@ -106,7 +108,7 @@ public sealed class NotificationReplayAppService : INotificationReplayAppService
                 exception);
         }
 
-        var replayTemplate = new NotificationSendRequestedHostEto
+        var replayTemplate = new NotificationChannelRequestHost
         {
             RequestId = input.OperationId,
             Channel = MapChannel(notification.Channel),
@@ -161,6 +163,7 @@ public sealed class NotificationReplayAppService : INotificationReplayAppService
         using var tenantFilterScope = BeginEntityLookupScope();
         var notification = await GetNotificationAsync(input.NotificationId, cancellationToken);
         EnsureTenantAccess(notification.TenantId);
+        await NotificationDispatchRecoveryGate.RejectDetachedCloneAsync(_notificationRepository, notification, cancellationToken);
         var recipients = await LoadSelectedRecipientsAsync(
             notification,
             input.RecipientIds,
@@ -196,6 +199,7 @@ public sealed class NotificationReplayAppService : INotificationReplayAppService
         using var tenantFilterScope = BeginEntityLookupScope();
         var notification = await GetNotificationAsync(input.NotificationId, cancellationToken);
         EnsureTenantAccess(notification.TenantId);
+        await NotificationDispatchRecoveryGate.RejectDetachedCloneAsync(_notificationRepository, notification, cancellationToken);
         EnsureOperationId(input.OperationId);
         var recipients = await LoadSelectedRecipientsAsync(
             notification,
@@ -203,7 +207,7 @@ public sealed class NotificationReplayAppService : INotificationReplayAppService
             cancellationToken);
 
         var model = DeserializeTemplateModel(notification, "replayed");
-        var replayTemplate = new NotificationSendRequestedHostEto
+        var replayTemplate = new NotificationChannelRequestHost
         {
             RequestId = input.OperationId,
             Channel = MapChannel(notification.Channel),

@@ -303,7 +303,7 @@ public sealed class MessagingCatalogAndTrustTests
         var message = CreateNotification(new Dictionary<string, string?> { ["subject"] = "original" });
         var original = TenantWrightAttestationService.Sha256(
             TenantWrightContractSerializer.SerializeCanonical(message, typeof(NotificationSendRequestedTenantEto)));
-        message.TemplateModel["subject"] = "modified";
+        message.DeliveryPlan.Steps[0].TemplateModel["subject"] = "modified";
 
         var modified = TenantWrightAttestationService.Sha256(
             TenantWrightContractSerializer.SerializeCanonical(message, typeof(NotificationSendRequestedTenantEto)));
@@ -316,7 +316,29 @@ public sealed class MessagingCatalogAndTrustTests
     {
         var tenantId = Guid.NewGuid();
         var currentTenant = new MessagingTestCurrentTenant(tenantId);
-        var message = new NotificationSendRequestedTenantEto { TenantId = tenantId };
+        var message = new NotificationSendRequestedTenantEto
+        {
+            TenantId = tenantId,
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.Email
+                    }]
+            },
+            Recipients = ((IEnumerable<NotificationRecipientEto>)[]).Select((recipient, index) => new NotificationRecipientPlan
+            {
+                Key = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                PreferenceUserId = null,
+                Destinations = [new NotificationDestination
+                {
+                    Channel = NotificationSendChannel.Email,
+                    RecipientType = recipient.RecipientType,
+                    RecipientValue = recipient.RecipientValue
+                }]
+            }).ToList(),
+        };
 
         var resolved = TenantWrightMessageContracts.ResolveTenant(
             MessagingTestData.Metadata<NotificationSendRequestedTenantEto>(), message, currentTenant);
@@ -352,7 +374,29 @@ public sealed class MessagingCatalogAndTrustTests
     [Fact]
     public void Tenant_contract_should_reject_a_missing_ambient_tenant()
     {
-        var message = new NotificationSendRequestedTenantEto { TenantId = Guid.NewGuid() };
+        var message = new NotificationSendRequestedTenantEto
+        {
+            TenantId = Guid.NewGuid(),
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.Email
+                    }]
+            },
+            Recipients = ((IEnumerable<NotificationRecipientEto>)[]).Select((recipient, index) => new NotificationRecipientPlan
+            {
+                Key = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                PreferenceUserId = null,
+                Destinations = [new NotificationDestination
+                {
+                    Channel = NotificationSendChannel.Email,
+                    RecipientType = recipient.RecipientType,
+                    RecipientValue = recipient.RecipientValue
+                }]
+            }).ToList(),
+        };
 
         var exception = Assert.Throws<MessagingSecurityException>(() =>
             TenantWrightMessageContracts.ResolveTenant(
@@ -397,7 +441,29 @@ public sealed class MessagingCatalogAndTrustTests
     public void Incoming_tenant_context_should_require_canonical_exact_tenant_binding()
     {
         var tenantId = Guid.NewGuid();
-        var message = new NotificationSendRequestedTenantEto { TenantId = tenantId };
+        var message = new NotificationSendRequestedTenantEto
+        {
+            TenantId = tenantId,
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.Email
+                    }]
+            },
+            Recipients = ((IEnumerable<NotificationRecipientEto>)[]).Select((recipient, index) => new NotificationRecipientPlan
+            {
+                Key = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                PreferenceUserId = null,
+                Destinations = [new NotificationDestination
+                {
+                    Channel = NotificationSendChannel.Email,
+                    RecipientType = recipient.RecipientType,
+                    RecipientValue = recipient.RecipientValue
+                }]
+            }).ToList(),
+        };
         var origin = new OriginAttestation(
             Guid.NewGuid(),
             "Shared.EventContracts.NotificationSendRequestedTenantEto",
@@ -485,8 +551,13 @@ public sealed class MessagingCatalogAndTrustTests
         {
             TenantId = Guid.Parse("00000000-0000-0000-0000-000000000111"),
             RequestId = Guid.Parse("00000000-0000-0000-0000-000000000222"),
-            TemplateName = "test-template",
-            TemplateModel = templateModel,
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Steps = [new NotificationChannelPlan
+                {
+                    Channel = NotificationSendChannel.Email, TemplateName = "test-template", TemplateModel = templateModel
+                }]
+            },
             SourceService = "tenantwright-tests",
             OccurredAtUtc = new DateTime(2026, 7, 25, 12, 0, 0, DateTimeKind.Utc)
         };

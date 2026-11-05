@@ -77,10 +77,9 @@ internal sealed class SmtpMessageDispatcher : ITransientDependency
         {
             await client.DisconnectAsync(quit: true, cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             _logger.LogWarning(
-                exception,
                 "SMTP disconnect failed after the provider accepted the message.");
         }
 

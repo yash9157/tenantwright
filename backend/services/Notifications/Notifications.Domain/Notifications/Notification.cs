@@ -11,6 +11,8 @@ public class Notification : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public Guid? TenantId { get; private set; }
 
     public Guid RequestId { get; private set; }
+    public Guid? DispatchStepId { get; private set; }
+    public Guid? DispatchScopeId { get; private set; }
 
     public NotificationChannel Channel { get; private set; }
 
@@ -109,6 +111,14 @@ public class Notification : FullAuditedAggregateRoot<Guid>, IMultiTenant
         }
 
         PreferenceUserId = string.IsNullOrWhiteSpace(normalizedPreferenceUserId) ? null : normalizedPreferenceUserId;
+    }
+
+    public void AttachDispatchStep(Guid stepId, Guid scopeId)
+    {
+        if (stepId == Guid.Empty || TenantId == Guid.Empty || scopeId != (TenantId ?? Guid.Empty) || DispatchStepId.HasValue)
+            throw new InvalidOperationException("A notification must attach once to a step in its exact tenant or host scope.");
+        DispatchStepId = stepId;
+        DispatchScopeId = scopeId;
     }
 
     private static DateTime? NormalizeScheduledForUtc(DateTime? value)

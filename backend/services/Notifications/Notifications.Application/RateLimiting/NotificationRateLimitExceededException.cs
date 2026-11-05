@@ -8,13 +8,14 @@ namespace Notifications.Application.RateLimiting;
 /// </summary>
 public sealed class NotificationRateLimitExceededException : Exception
 {
-    public NotificationRateLimitExceededException(string scope, NotificationChannel channel, int limit, long observed)
+    public NotificationRateLimitExceededException(string scope, NotificationChannel channel, long limit, long observed, DateTime retryAtUtc)
         : base($"Notification rate limit exceeded for scope '{scope}' channel '{channel}': {observed} > {limit}.")
     {
         Scope = scope;
         Channel = channel;
         Limit = limit;
         Observed = observed;
+        RetryAtUtc = retryAtUtc;
     }
 
     /// <summary>"tenant" or "global".</summary>
@@ -22,7 +23,8 @@ public sealed class NotificationRateLimitExceededException : Exception
 
     public NotificationChannel Channel { get; }
 
-    public int Limit { get; }
+    public long Limit { get; }
 
     public long Observed { get; }
+    public DateTime RetryAtUtc { get; }
 }

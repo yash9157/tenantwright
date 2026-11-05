@@ -158,7 +158,7 @@ Every provider must meet these rules:
 
 ### Notification providers
 
-**Planned: Omnichannel notifications.** Coordinate email, SMS, WhatsApp, and push through a single notification workflow.
+**Available: Omnichannel notifications.** A single dispatch coordinates email, SMS, WhatsApp, push, and in-app delivery with parallel or per-recipient ordered fallback. See [Notification dispatches](docs/architecture.md#notification-dispatches).
 
 | Channel | Provider | Status |
 |---|---|---|

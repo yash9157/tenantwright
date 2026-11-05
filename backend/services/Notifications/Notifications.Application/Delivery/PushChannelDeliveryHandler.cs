@@ -29,7 +29,7 @@ public sealed class PushChannelDeliveryHandler : IChannelDeliveryHandler, ITrans
     {
         if (context.RecipientType != NotificationRecipientType.DeviceToken)
         {
-            return ChannelDeliveryResult.Failed("invalid_push_recipient_type");
+            return ChannelDeliveryResult.PermanentRejection("invalid_push_recipient_type");
         }
 
         var rendered = await _templateRenderer.RenderAsync(
@@ -49,6 +49,6 @@ public sealed class PushChannelDeliveryHandler : IChannelDeliveryHandler, ITrans
             body,
             cancellationToken);
 
-        return ChannelDeliveryResult.Success(providerMessageId: outcome.ProviderMessageId, providerConfigId: outcome.ProviderConfigId);
+        return ChannelDeliveryResult.FromProvider(outcome);
     }
 }

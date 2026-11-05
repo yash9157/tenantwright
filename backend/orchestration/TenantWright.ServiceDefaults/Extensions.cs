@@ -6,6 +6,7 @@ using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using System.Diagnostics;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -73,6 +74,9 @@ public static class Extensions
                     .AddMeter("AuditLogs.Ingestion")
                     .AddMeter("AuditLogs.Archive")
                     .AddMeter("AuditLogs.OperationalHealth")
+                    .AddMeter("Notifications.Dispatch")
+                    .AddMeter("Notifications.Delivery")
+                    .AddMeter("Notifications.RateLimit")
                     .AddMeter("Shared.Data.ConnectionStrings")
                     .AddMeter("Shared.BackgroundTasks")
                     .AddMeter("Shared.EventBus.Outbox")
@@ -84,6 +88,7 @@ public static class Extensions
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
+                    .AddSource("Notifications.Delivery")
                     .AddSource("Wolverine")
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
@@ -94,13 +99,22 @@ public static class Extensions
                     .AddEntityFrameworkCoreInstrumentation()
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
-                    .AddHttpClientInstrumentation()
+                    .AddHttpClientInstrumentation(options => options.FilterHttpRequestMessage = ShouldInstrumentHttpRequest)
                     .AddRedisInstrumentation();
             });
 
         builder.AddOpenTelemetryExporters();
 
         return builder;
+    }
+
+    private static bool ShouldInstrumentHttpRequest(HttpRequestMessage request)
+    {
+        // Classification belongs to the caller. This generic scope flag keeps sensitive URLs out of HTTP spans.
+        for (var activity = Activity.Current; activity is not null; activity = activity.Parent)
+            if (activity.GetTagItem("telemetry.suppress_http_instrumentation") is true)
+                return false;
+        return true;
     }
 
     private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder

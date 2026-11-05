@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Http.Resilience;
 using Notifications.Application;
 using Notifications.Application.Contracts.Presence;
 using Notifications.Application.Contracts.Realtime;
@@ -61,6 +62,7 @@ public class NotificationsHostModule : BaseModule
     {
         var services = context.Services;
         var configuration = context.Configuration;
+        services.AddHealthChecks().AddCheck<NotificationDispatchReadinessHealthCheck>("NotificationDispatch", tags: ["ready"]);
         services.AddTenantWrightMessagingHost<global::Notifications.EntityFrameworkCore.EntityFrameworkCore.NotificationsDbContextApp>(
             configuration,
             TenantWrightMessagingTopology.NotificationsPrincipal);
@@ -182,11 +184,7 @@ public class NotificationsHostModule : BaseModule
             });
 
         services.Configure<NotificationsSmsProviderOptions>(configuration.GetSection("Notifications:Sms"));
-        services.AddHttpClient(TwilioSmsProviderAdapter.HttpClientName);
-        services.AddHttpClient(MetaWhatsAppCloudProviderAdapter.HttpClientName);
-        services.AddHttpClient(FcmPushProviderAdapter.HttpClientName);
-        services.AddHttpClient(ApnsPushProviderAdapter.HttpClientName);
-        services.AddHttpClient(WebPushProviderAdapter.HttpClientName);
+        ConfigureProviderHttpClients(services);
         services.AddRateLimiter(rateLimiter =>
         {
             rateLimiter.AddFixedWindowLimiter(TwilioSmsWebhookController.RateLimiterPolicy, window =>
@@ -212,7 +210,17 @@ public class NotificationsHostModule : BaseModule
         services.Configure<NotificationsEmailFeedbackOptions>(
             configuration.GetSection(NotificationsEmailFeedbackOptions.SectionName));
 
-        services.Configure<NotificationsRateLimitOptions>(configuration.GetSection("Notifications:RateLimit"));
+        services.AddOptions<NotificationsRateLimitOptions>().Bind(configuration.GetSection("Notifications:RateLimit"))
+            .Validate(options => options.WindowSeconds is >= 1 and <= 3600 && options.PerTenantChannelPerWindow >= 0 &&
+                options.BurstAllowance >= 0 && options.GlobalPerWindow >= 0 && options.PerChannelOverrides is not null &&
+                options.PerChannelOverrides.All(entry => entry.Value >= 0 &&
+                    Enum.TryParse<global::Notifications.Domain.Shared.Enums.NotificationChannel>(entry.Key, ignoreCase: true, out var channel) && Enum.IsDefined(channel)),
+                "Notification quotas require a bounded window, known channels and nonnegative limits.")
+            .Validate(options => !options.Enabled ||
+                (string.Equals(configuration["Caching:Provider"] ?? "Valkey", "Valkey", StringComparison.OrdinalIgnoreCase) &&
+                 !string.IsNullOrWhiteSpace(configuration["Caching:Valkey:Configuration"])),
+                "Atomic notification quotas require the configured Valkey provider.")
+            .ValidateOnStart();
 
         services.Configure<NotificationsRetentionOptions>(configuration.GetSection("Notifications:Retention"));
         services.Configure<NotificationsDigestOptions>(configuration.GetSection("Notifications:Digests"));
@@ -326,4 +334,21 @@ public class NotificationsHostModule : BaseModule
             }
         });
     }
+
+    internal static void ConfigureProviderHttpClients(IServiceCollection services)
+    {
+        // The worker owns retries after definitive rejection. Inherited HTTP retries must never repeat a send POST.
+        foreach (var name in new[] { TwilioSmsProviderAdapter.HttpClientName, MetaWhatsAppCloudProviderAdapter.HttpClientName,
+            FcmPushProviderAdapter.HttpClientName, ApnsPushProviderAdapter.HttpClientName, WebPushProviderAdapter.HttpClientName })
+            services.AddHttpClient(name, client => client.Timeout = TimeSpan.FromSeconds(30))
+                .UseSocketsHttpHandler((handler, _) => handler.AllowAutoRedirect = false)
+                .RemoveAllLoggers()
+                .ConfigureAdditionalHttpMessageHandlers((handlers, _) =>
+                {
+                    foreach (var inherited in handlers.OfType<ResilienceHandler>().ToArray())
+                        handlers.Remove(inherited);
+                })
+                .AddStandardResilienceHandler(options => options.Retry.DisableForUnsafeHttpMethods());
+    }
+
 }

@@ -37,21 +37,6 @@ public sealed class ContractSerializationTests
         {
             RequestId = Guid.Parse("00000000-0000-0000-0000-000000000010"),
             TenantId = Guid.Parse("00000000-0000-0000-0000-000000000011"),
-            Channel = NotificationSendChannel.App,
-            Subject = "Session revoked",
-            TemplateName = "Identity.SessionRevoked",
-            TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
-            {
-                ["action"] = "admin-revoke"
-            },
-            Recipients =
-            [
-                new NotificationRecipientEto
-                {
-                    RecipientType = NotificationSendRecipientType.UserId,
-                    RecipientValue = "00000000-0000-0000-0000-000000000012"
-                }
-            ],
             Category = "security",
             Priority = NotificationSendPriority.High,
             ActionUrl = "/sessions",
@@ -59,14 +44,44 @@ public sealed class ContractSerializationTests
             ScheduledForUtc = null,
             SourceService = "identity",
             RespectUserPreferences = false,
-            PreferenceUserId = null,
-            PreferenceKey = null
+            PreferenceKey = null,
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.App,
+                        Subject = "Session revoked",
+                        TemplateName = "Identity.SessionRevoked",
+                        TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                ["action"] = "admin-revoke"
+            }
+                    }]
+            },
+            Recipients = ((IEnumerable<NotificationRecipientEto>)[
+                new NotificationRecipientEto
+                {
+                    RecipientType = NotificationSendRecipientType.UserId,
+                    RecipientValue = "00000000-0000-0000-0000-000000000012"
+                }
+            ]).Select((recipient, index) => new NotificationRecipientPlan
+            {
+                Key = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                PreferenceUserId = null,
+                Destinations = [new NotificationDestination
+                {
+                    Channel = NotificationSendChannel.App,
+                    RecipientType = recipient.RecipientType,
+                    RecipientValue = recipient.RecipientValue
+                }]
+            }).ToList(),
         };
 
         var json = JsonSerializer.Serialize(contract);
 
         Assert.Equal(
-            "{\"TenantId\":\"00000000-0000-0000-0000-000000000011\",\"RequestId\":\"00000000-0000-0000-0000-000000000010\",\"Channel\":4,\"Subject\":\"Session revoked\",\"TemplateName\":\"Identity.SessionRevoked\",\"TemplateModel\":{\"action\":\"admin-revoke\"},\"Recipients\":[{\"RecipientType\":3,\"RecipientValue\":\"00000000-0000-0000-0000-000000000012\"}],\"Category\":\"security\",\"Priority\":3,\"ActionUrl\":\"/sessions\",\"OccurredAtUtc\":\"2026-07-25T10:00:00Z\",\"ScheduledForUtc\":null,\"SourceService\":\"identity\",\"RespectUserPreferences\":false,\"PreferenceUserId\":null,\"PreferenceKey\":null}",
+            "{\"TenantId\":\"00000000-0000-0000-0000-000000000011\",\"RequestId\":\"00000000-0000-0000-0000-000000000010\",\"DeliveryPlan\":{\"Mode\":1,\"Steps\":[{\"Channel\":4,\"TemplateName\":\"Identity.SessionRevoked\",\"Subject\":\"Session revoked\",\"TemplateModel\":{\"action\":\"admin-revoke\"}}]},\"Recipients\":[{\"Key\":\"0\",\"PreferenceUserId\":null,\"Destinations\":[{\"Channel\":4,\"RecipientType\":3,\"RecipientValue\":\"00000000-0000-0000-0000-000000000012\"}]}],\"ExpiresAtUtc\":null,\"Category\":\"security\",\"Priority\":3,\"ActionUrl\":\"/sessions\",\"OccurredAtUtc\":\"2026-07-25T10:00:00Z\",\"ScheduledForUtc\":null,\"SourceService\":\"identity\",\"RespectUserPreferences\":false,\"PreferenceKey\":null}",
             json);
     }
 
@@ -93,8 +108,8 @@ FeatureValuesChangedTenantEto:FeatureNames,OccurredAtUtc,TenantId
 IdentityPlatformRoleRetirementRequestedEto:LifecycleVersion,OccurredAtUtc,RequestId,RoleId
 IdentitySessionRevokedHostEto:Action,OccurredAtUtc,SessionId,UserId
 IdentitySessionRevokedTenantEto:Action,OccurredAtUtc,SessionId,TenantId,UserId
-NotificationSendRequestedHostEto:ActionUrl,Category,Channel,OccurredAtUtc,PreferenceKey,PreferenceUserId,Priority,Recipients,RequestId,RespectUserPreferences,ScheduledForUtc,SourceService,Subject,TemplateModel,TemplateName
-NotificationSendRequestedTenantEto:ActionUrl,Category,Channel,OccurredAtUtc,PreferenceKey,PreferenceUserId,Priority,Recipients,RequestId,RespectUserPreferences,ScheduledForUtc,SourceService,Subject,TemplateModel,TemplateName,TenantId
+NotificationSendRequestedHostEto:ActionUrl,Category,DeliveryPlan,ExpiresAtUtc,OccurredAtUtc,PreferenceKey,Priority,Recipients,RequestId,RespectUserPreferences,ScheduledForUtc,SourceService
+NotificationSendRequestedTenantEto:ActionUrl,Category,DeliveryPlan,ExpiresAtUtc,OccurredAtUtc,PreferenceKey,Priority,Recipients,RequestId,RespectUserPreferences,ScheduledForUtc,SourceService,TenantId
 PermissionGrantApprovalDecidedEto:DeciderDisplayName,Decision,DecisionReason,OccurredAtUtc,PermissionName,ProviderDisplayName,RequestId,RequesterUserId,TenantId
 PermissionGrantApprovalRequestedEto:ApproverRoleNames,ApproverUserIds,OccurredAtUtc,PermissionName,ProviderDisplayName,Reason,RequestId,RequesterDisplayName,TenantId,TicketId
 PermissionGrantsChangedHostEto:OccurredAtUtc,ProviderKey,ProviderName,Stamp

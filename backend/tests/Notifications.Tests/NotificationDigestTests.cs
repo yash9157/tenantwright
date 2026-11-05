@@ -158,7 +158,7 @@ public class NotificationDigestTests
         Assert.Contains(bucketType.GetIndexes(), index =>
             index.IsUnique &&
             index.Properties.Select(property => property.Name).SequenceEqual(
-                ["ScopeKey", "Channel", "RecipientType", "RecipientValue", "Frequency", "PeriodStartUtc"]));
+                ["ScopeKey", "Channel", "RecipientType", "RecipientValueHash", "Frequency", "PeriodStartUtc"]));
 
         var itemType = dbContext.Model.FindEntityType(typeof(NotificationDigestItem))!;
         Assert.Contains(itemType.GetIndexes(), index =>
@@ -216,12 +216,12 @@ public class NotificationDigestTests
         public List<CapturedNotificationRequest> Requests { get; } = [];
 
         public Task<NotificationScheduleResult> ScheduleAsync(
-            NotificationSendRequestedTenantEto input,
+            NotificationChannelRequestTenant input,
             CancellationToken cancellationToken = default)
             => CaptureAsync(CapturedNotificationRequest.From(input));
 
         public Task<NotificationScheduleResult> ScheduleAsync(
-            NotificationSendRequestedHostEto input,
+            NotificationChannelRequestHost input,
             CancellationToken cancellationToken = default)
             => CaptureAsync(CapturedNotificationRequest.From(input));
 

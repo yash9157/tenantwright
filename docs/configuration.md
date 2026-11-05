@@ -92,3 +92,37 @@ Use this to debug a single host from your IDE. The rest of the system can keep r
 - `WORKFLOWS_DB_CONNECTION`
 
 Tenant has its own `TenantDesignTimeDbContextFactory` in the host project. Without the variable, the factories fall back to a local `localhost` connection string. Restore the pinned tool with `dotnet tool restore`.
+
+## Notification dispatch and send bounds
+
+`Notifications:Dispatch` binds the owning `NotificationDispatchOptions`:
+
+| Setting | Default | Valid range |
+|---|---|---|
+| `MaximumRecipients` | 100 | 1-100 |
+| `MaximumDestinationsPerChannel` | 10 | 1-10 per recipient/channel |
+| `MaximumTotalDestinations` | 1000 | 1-1000 per request |
+| `MaximumPayloadBytes` | 262144 | 1024-262144 canonical JSON bytes |
+| `DefaultLifetimeDays` | 7 | 1-30, from scheduled activation |
+| `ReconciliationBatchSize` | 100 | 1-100 steps per database/cycle |
+
+A plan has at most five distinct channels. Explicit expiry must follow activation
+and be no more than 30 days later. The existing delivery scheduling horizon still
+applies. `Notifications:Delivery:ProviderTimeoutSeconds` defaults to 30 and accepts
+1-30; `ProcessingLeaseSeconds` must be 5-600 and exceed that timeout. Invalid
+bounds fail startup.
+
+`Notifications:RateLimit` remains opt-in (`Enabled=false` by default). When enabled,
+it requires the configured Valkey provider and atomically reserves both the
+scope/channel and global budgets. `WindowSeconds` accepts 1-3600; limits and
+burst allowances must be nonnegative and override channel names must be known.
+Zero disables the corresponding cap. Stable operation IDs bind scope, channel
+and amount. Repeated operations are not charged again, including across window
+rollover; a denied reservation consumes neither budget and is retried no earlier
+than the next server-time window. Reservation bindings live for 31 days.
+
+Quota keys use the configured cache instance namespace and one deliberate Valkey
+cluster hash slot so tenant/channel and global updates commit atomically. This
+concentrates quota traffic on that slot. Digest emission reuses the reservations
+already made for its source intents. These quotas count admitted channel targets,
+not provider retry attempts.

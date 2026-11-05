@@ -79,6 +79,18 @@ internal static class NotificationsEfCoreTestHarness
         return dbContext;
     }
 
+    public static NotificationsDbContextApp BuildPostgresDbContext(
+        string connectionString, Guid? tenantId, bool multiTenantFilterEnabled = false)
+    {
+        var options = new DbContextOptionsBuilder<NotificationsDbContextApp>().UseNpgsql(connectionString).Options;
+        var dbContext = new NotificationsDbContextApp(options)
+        {
+            ServiceProvider = CreateServiceProvider(tenantId, multiTenantFilterEnabled)
+        };
+        dbContext.Initialize(new EfCoreDbContextInitializationContext(new NoopUnitOfWork(new UnitOfWorkOptions())));
+        return dbContext;
+    }
+
     public static IDbContextProvider<NotificationsDbContextApp> AsDbContextProvider(NotificationsDbContextApp dbContext)
         => new TestDbContextProvider(dbContext);
 
@@ -319,6 +331,7 @@ internal sealed class StubNotificationsTemplateRenderer
 internal sealed class PassThroughRateLimiter : Notifications.Application.Contracts.RateLimiting.INotificationRateLimiter
 {
     public Task EnsureWithinLimitAsync(
+        Guid operationId,
         Guid? tenantId,
         Notifications.Domain.Shared.Enums.NotificationChannel channel,
         int messageCount,
@@ -411,7 +424,7 @@ internal sealed class ConfigurableDataFilter : IDataFilter
     public bool IsEnabled<TFilter>() where TFilter : class => _enabled;
 }
 
-internal sealed class EfTestRepository<TEntity, TKey> : IRepository<TEntity, TKey>
+internal sealed class EfTestRepository<TEntity, TKey> : Shared.EntityFrameworkCore.Repositories.IEfCoreRepository<TEntity, TKey>
     where TEntity : class, IEntity<TKey>
 {
     private readonly NotificationsDbContextApp _dbContext;
@@ -420,6 +433,9 @@ internal sealed class EfTestRepository<TEntity, TKey> : IRepository<TEntity, TKe
     {
         _dbContext = dbContext;
     }
+
+    public Task<DbContext> GetDbContextAsync() => Task.FromResult<DbContext>(_dbContext);
+    public Task<DbSet<TEntity>> GetDbSetAsync() => Task.FromResult(_dbContext.Set<TEntity>());
 
     public string? EntityName { get; set; }
     public string ProviderName => "EfCoreInMemory";

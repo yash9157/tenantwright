@@ -20,6 +20,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Shared.EntityFrameworkCore;
 using Shared.EntityFrameworkCore.TenantDatabases;
+using Notifications.Application.Dispatches;
 
 namespace Notifications.Application.Delivery;
 
@@ -86,6 +87,7 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
 
     public async Task<int> ProcessBatchAsync(CancellationToken cancellationToken = default)
     {
+        var batchStarted = Stopwatch.GetTimestamp();
         var batchSize = Math.Clamp(_options.BatchSize, 1, 500);
         var maxRetryCount = Math.Max(1, _options.MaxRetryCount);
         var dueNow = DateTime.UtcNow;
@@ -124,6 +126,8 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
 
         foreach (var deliveryId in dueDeliveryIds)
         {
+            if (Stopwatch.GetElapsedTime(batchStarted) >= TimeSpan.FromSeconds(30))
+                break;
             try
             {
                 var claimed = await TryClaimDeliveryAsync(
@@ -195,6 +199,8 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
                     }
                 }
 
+                if (!result.IsSuccess && !finalized.WillRetry && !finalized.IsDeadLettered)
+                    DeliveryNeedsReviewCounter.Add(1, new KeyValuePair<string, object?>("channel", claimed.Notification.Channel.ToString()));
                 await TryPublishDeliveryAuditAsync(claimed, result, finalized, processDurationMs, cancellationToken);
 
                 if (finalized.RealtimeSignal != null)
@@ -245,6 +251,7 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
                 {
                     var expiredAttemptId = delivery.DeliveryAttemptId;
                     delivery.MarkNeedsReview("provider_outcome_ambiguous", claimStartedAt);
+                    await NotificationDispatchGate.DirtyAsync(unitOfWorkDbContext, delivery.Notification, claimStartedAt, operationToken);
                     return new DeliveryClaimResult
                     {
                         Disposition = DeliveryClaimDisposition.NeedsReview,
@@ -252,6 +259,17 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
                         DeliveryId = delivery.Id,
                         DeliveryAttemptId = expiredAttemptId
                     };
+                }
+
+                var blocked = await NotificationDispatchGate.ClaimSendAsync(unitOfWorkDbContext, delivery.Notification,
+                    claimStartedAt, operationToken);
+                if (blocked.HasValue)
+                {
+                    if (blocked == NotificationDispatchState.NeedsReview)
+                        delivery.MarkNeedsReview("dispatch_routing_changed", claimStartedAt);
+                    else
+                        delivery.StopBeforeSend(claimStartedAt, blocked == NotificationDispatchState.Expired);
+                    return DeliveryClaimResult.None;
                 }
 
                 var policyDecision = await _policyResolver.EvaluateAsync(
@@ -376,14 +394,16 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
     {
         if (!_handlers.TryGetValue(claimed.Notification.Channel, out var handler))
         {
-            return ChannelDeliveryResult.Failed("channel_not_supported");
+            return ChannelDeliveryResult.Unavailable("channel_not_supported");
         }
 
+        using var sendDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        sendDeadline.CancelAfter(TimeSpan.FromSeconds(_options.ProviderTimeoutSeconds));
         try
         {
             using (_currentTenant.Change(claimed.TenantId))
             {
-                return await handler.DeliverAsync(
+                var result = await handler.DeliverAsync(
                     new ChannelDeliveryContext
                     {
                         TenantId = claimed.TenantId,
@@ -395,13 +415,17 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
                         RecipientValue = claimed.Recipient.RecipientValue,
                         TemplateModel = claimed.TemplateModel
                     },
-                    cancellationToken);
+                    sendDeadline.Token).WaitAsync(sendDeadline.Token);
+                return result is not null && Enum.IsDefined(result.Outcome) &&
+                    (!result.RetryAfterUtc.HasValue || result.RetryAfterUtc.Value.Kind == DateTimeKind.Utc)
+                    ? result : ChannelDeliveryResult.Ambiguous("provider_outcome_invalid");
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw;
+            return ChannelDeliveryResult.Ambiguous("provider_response_timeout");
         }
+        catch (OperationCanceledException) { throw; }
         catch (NotificationChannelUnavailableException ex)
         {
             _logger.LogWarning(
@@ -412,16 +436,15 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
                 ex.ErrorCode);
             return ChannelDeliveryResult.Unavailable(ex.ErrorCode);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             _logger.LogWarning(
-                ex,
                 "Notification delivery handler failed. DeliveryId={DeliveryId}, NotificationId={NotificationId}, Channel={Channel}, TemplateName={TemplateName}",
                 claimed.DeliveryId,
                 claimed.NotificationId,
                 claimed.Notification.Channel,
                 claimed.Notification.TemplateName);
-            return ChannelDeliveryResult.Failed(SanitizeException(ex));
+            return ChannelDeliveryResult.Ambiguous("provider_outcome_unknown");
         }
     }
 
@@ -502,7 +525,28 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
         return string.IsNullOrWhiteSpace(firstLine) ? null : firstLine;
     }
 
-    private Task<FinalizedDelivery?> FinalizeDeliveryAsync(
+    private async Task<FinalizedDelivery?> FinalizeDeliveryAsync(ClaimedDelivery claimed, ChannelDeliveryResult result,
+        RenderedInboxContent? renderedInboxContent, int maxRetryCount, CancellationToken cancellationToken)
+    {
+        // Retry persistence with the captured result, never the provider call. Each executor call owns a fresh UoW.
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await FinalizeOnceAsync(claimed, result, renderedInboxContent, maxRetryCount, cancellationToken);
+            }
+            catch (Shared.Data.Exceptions.SharedDbConcurrencyException) when (attempt < 2)
+            {
+                _logger.LogDebug("Retrying persistence for notification delivery {DeliveryId} after a revision conflict.", claimed.DeliveryId);
+            }
+            catch (Shared.SharedConflictException) when (attempt < 2)
+            {
+                _logger.LogDebug("Retrying persistence for notification delivery {DeliveryId} after a competing transition.", claimed.DeliveryId);
+            }
+        }
+    }
+
+    private Task<FinalizedDelivery?> FinalizeOnceAsync(
         ClaimedDelivery claimed,
         ChannelDeliveryResult result,
         RenderedInboxContent? renderedInboxContent,
@@ -523,9 +567,10 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
                 }
 
                 AppNotificationSignalDto? realtimeSignal = null;
+                await NotificationDispatchGate.DirtyAsync(unitOfWorkDbContext, claimed.Notification, DateTime.UtcNow, operationToken);
                 if (result.IsSuccess)
                 {
-                    if (claimed.Notification.Channel == NotificationChannel.App)
+                    if (claimed.Notification.Channel == NotificationChannel.App || result.Outcome == NotificationSendOutcome.Delivered)
                     {
                         delivery.MarkDelivered(DateTime.UtcNow, result.ProviderMessageId, result.ProviderConfigId);
                     }
@@ -575,7 +620,7 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
                 }
                 else
                 {
-                    if (result.IsUnavailable)
+                    if (result.Outcome is NotificationSendOutcome.UnavailableBeforeSend or NotificationSendOutcome.Ambiguous)
                     {
                         delivery.MarkNeedsReview(NormalizeError(result.ErrorCode), DateTime.UtcNow);
                         return new FinalizedDelivery
@@ -587,7 +632,7 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
                         };
                     }
 
-                    var willRetry = delivery.TryCount < maxRetryCount;
+                    var willRetry = result.Outcome == NotificationSendOutcome.RetryableRejection && delivery.TryCount < maxRetryCount;
                     if (willRetry)
                     {
                         var retryDelaySeconds = ComputeRetryDelaySeconds(
@@ -595,6 +640,8 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
                             _options.BaseRetryDelaySeconds,
                             _options.MaxRetryDelaySeconds);
                         var nextAttempt = DateTime.UtcNow.AddSeconds(retryDelaySeconds);
+                        if (result.RetryAfterUtc > nextAttempt)
+                            nextAttempt = result.RetryAfterUtc.Value;
                         delivery.MarkFailed(
                             NormalizeError(result.ErrorCode),
                             nextAttempt,
@@ -705,17 +752,6 @@ public sealed class NotificationDeliveryWorker : INotificationDeliveryWorker, IT
         return normalized.Length <= 128 ? normalized : normalized[..128];
     }
 
-    private static string SanitizeException(Exception exception)
-    {
-        var error = exception switch
-        {
-            TimeoutException => "delivery_timeout",
-            InvalidOperationException => "delivery_invalid_operation",
-            _ => "delivery_failed"
-        };
-
-        return error;
-    }
 
     private async Task TryPublishDeliveryAuditAsync(
         ClaimedDelivery claimed,

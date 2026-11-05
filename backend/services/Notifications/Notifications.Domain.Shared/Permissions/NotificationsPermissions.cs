@@ -36,6 +36,12 @@ public static class NotificationsPermissions
         public const string OverrideResend = Default + ".OverrideResend";
     }
 
+    public static class Dispatches
+    {
+        public const string Default = "Notifications.Dispatches";
+        public const string Cancel = Default + ".Cancel";
+    }
+
     public static class Config
     {
         public const string Default = "Notifications.Config";

@@ -29,7 +29,7 @@ public sealed class WhatsAppChannelDeliveryHandler : IChannelDeliveryHandler, IT
     {
         if (context.RecipientType != NotificationRecipientType.PhoneNumber)
         {
-            return ChannelDeliveryResult.Failed("invalid_whatsapp_recipient_type");
+            return ChannelDeliveryResult.PermanentRejection("invalid_whatsapp_recipient_type");
         }
 
         var rendered = await _templateRenderer.RenderAsync(
@@ -44,6 +44,6 @@ public sealed class WhatsAppChannelDeliveryHandler : IChannelDeliveryHandler, IT
         }
 
         var outcome = await _sender.SendAsync(context.RecipientValue, context.TemplateName, message, cancellationToken);
-        return ChannelDeliveryResult.Success(providerMessageId: outcome.ProviderMessageId, providerConfigId: outcome.ProviderConfigId);
+        return ChannelDeliveryResult.FromProvider(outcome);
     }
 }

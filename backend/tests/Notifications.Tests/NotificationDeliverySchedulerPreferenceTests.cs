@@ -47,7 +47,7 @@ public class NotificationDeliverySchedulerPreferenceTests
             new NoopNotificationDigestPlanner(),
             NullLogger<NotificationDeliveryScheduler>.Instance);
 
-        var result = await scheduler.ScheduleAsync(new NotificationSendRequestedTenantEto
+        var result = await scheduler.ScheduleAsync(new NotificationChannelRequestTenant
         {
             RequestId = Guid.CreateVersion7(),
             TenantId = Guid.CreateVersion7(),
@@ -138,7 +138,7 @@ public class NotificationDeliverySchedulerPreferenceTests
             new NoopNotificationDigestPlanner(),
             NullLogger<NotificationDeliveryScheduler>.Instance);
 
-        var result = await scheduler.ScheduleAsync(new NotificationSendRequestedTenantEto
+        var result = await scheduler.ScheduleAsync(new NotificationChannelRequestTenant
         {
             RequestId = Guid.CreateVersion7(),
             TenantId = Guid.CreateVersion7(),
@@ -273,11 +273,11 @@ public class NotificationDeliverySchedulerPreferenceTests
         Assert.Equal(0, wakeSignal.SignalCount);
     }
 
-    private static NotificationSendRequestedTenantEto CreateEmailEvent(
+    private static NotificationChannelRequestTenant CreateEmailEvent(
         Guid? requestId = null,
         Guid? tenantId = null)
     {
-        return new NotificationSendRequestedTenantEto
+        return new NotificationChannelRequestTenant
         {
             RequestId = requestId ?? Guid.CreateVersion7(),
             TenantId = tenantId ?? Guid.CreateVersion7(),
@@ -322,9 +322,9 @@ public class NotificationDeliverySchedulerPreferenceTests
         public string? EntityName { get; set; }
         public string ProviderName => "InMemory";
 
-        public Task<IQueryable<TEntity>> WithDetailsAsync() => Task.FromResult(Enumerable.Empty<TEntity>().AsQueryable());
-        public Task<IQueryable<TEntity>> WithDetailsAsync(params Expression<Func<TEntity, object>>[] propertySelectors) => Task.FromResult(Enumerable.Empty<TEntity>().AsQueryable());
-        public Task<IQueryable<TEntity>> GetQueryableAsync() => Task.FromResult(Enumerable.Empty<TEntity>().AsQueryable());
+        public Task<IQueryable<TEntity>> WithDetailsAsync() => Task.FromResult<IQueryable<TEntity>>(new TestAsyncEnumerable<TEntity>([]));
+        public Task<IQueryable<TEntity>> WithDetailsAsync(params Expression<Func<TEntity, object>>[] propertySelectors) => Task.FromResult<IQueryable<TEntity>>(new TestAsyncEnumerable<TEntity>([]));
+        public Task<IQueryable<TEntity>> GetQueryableAsync() => Task.FromResult<IQueryable<TEntity>>(new TestAsyncEnumerable<TEntity>([]));
         public Task<List<TEntity>> GetListAsync(bool includeDetails = false, CancellationToken cancellationToken = default) => Task.FromResult(new List<TEntity>());
         public Task<long> GetCountAsync(CancellationToken cancellationToken = default) => Task.FromResult(0L);
         public Task<List<TEntity>> GetPagedListAsync(int skipCount, int maxResultCount, string sorting, bool includeDetails = false, CancellationToken cancellationToken = default) => Task.FromResult(new List<TEntity>());

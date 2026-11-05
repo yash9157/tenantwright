@@ -1,3 +1,7 @@
+using Notifications.Application.Delivery.Providers;
+using MailKit.Net.Smtp;
+using Notifications.Application.Contracts.Channels;
+using Notifications.Application.Contracts.Delivery;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
 using MimeKit;
@@ -35,8 +39,9 @@ internal sealed class MailKitEmailNotificationSender : IEmailNotificationSender,
         _smtpDispatcher = smtpDispatcher;
     }
 
-    public async Task<string?> SendAsync(string to, string subject, string htmlBody, CancellationToken cancellationToken = default)
+    public async Task<NotificationProviderSendResult> SendAsync(string to, string subject, string htmlBody, CancellationToken cancellationToken = default)
     {
+        using var sendActivity = NotificationProviderTrace.Start(NotificationChannel.Email);
         var started = Stopwatch.GetTimestamp();
         var tenantId = _currentTenant.Id;
 
@@ -56,18 +61,19 @@ internal sealed class MailKitEmailNotificationSender : IEmailNotificationSender,
 
             if (string.IsNullOrWhiteSpace(host))
             {
-                throw new InvalidOperationException("Notifications:Email:Smtp:Host is required.");
+                return NotificationProviderSendResult.Unavailable("smtp_host_missing");
             }
             if (string.IsNullOrWhiteSpace(fromAddress))
             {
-                throw new InvalidOperationException("Notifications:Email:Smtp:FromAddress is required.");
+                return NotificationProviderSendResult.Unavailable("smtp_sender_missing");
             }
             if (string.IsNullOrWhiteSpace(to))
             {
-                throw new InvalidOperationException("Email recipient is required.");
+                return NotificationProviderSendResult.PermanentRejection("email_recipient_missing");
             }
 
             var message = new MimeMessage();
+            message.MessageId = $"{Guid.CreateVersion7():N}@tenantwright.invalid";
             message.From.Add(string.IsNullOrWhiteSpace(fromName)
                 ? MailboxAddress.Parse(fromAddress)
                 : new MailboxAddress(fromName, fromAddress));
@@ -76,7 +82,7 @@ internal sealed class MailKitEmailNotificationSender : IEmailNotificationSender,
             message.Body = new TextPart(TextFormat.Html) { Text = htmlBody ?? string.Empty };
 
             var secureSocketOptions = EmailProviderConfigSmtpHelpers.ParseSecureSocketOptions(secureSocketOption);
-            return await _smtpDispatcher.SendAsync(
+            await _smtpDispatcher.SendAsync(
                 host,
                 port,
                 secureSocketOptions,
@@ -84,6 +90,19 @@ internal sealed class MailKitEmailNotificationSender : IEmailNotificationSender,
                 password,
                 message,
                 cancellationToken);
+            var result = NotificationProviderSendResult.Success(message.MessageId);
+            return resolved is null ? result : result.WithConfiguration(resolved.ConfigId);
+        }
+        catch (SmtpCommandException rejection) when (rejection.ErrorCode is SmtpErrorCode.MessageNotAccepted or SmtpErrorCode.RecipientNotAccepted)
+        {
+            var status = (int)rejection.StatusCode;
+            var code = $"smtp_{status}";
+            return status is >= 400 and < 500 ? NotificationProviderSendResult.RetryableRejection(code) :
+                status is >= 500 and < 600 ? NotificationProviderSendResult.PermanentRejection(code) : NotificationProviderSendResult.Ambiguous(code);
+        }
+        catch (SmtpCommandException)
+        {
+            return NotificationProviderSendResult.Unavailable("smtp_configuration_rejected");
         }
         finally
         {

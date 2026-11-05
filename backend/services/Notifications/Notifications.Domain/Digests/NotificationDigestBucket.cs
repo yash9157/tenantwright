@@ -11,6 +11,7 @@ public sealed class NotificationDigestBucket : FullAuditedAggregateRoot<Guid>, I
     public NotificationChannel Channel { get; private set; }
     public NotificationRecipientType RecipientType { get; private set; }
     public string RecipientValue { get; private set; } = default!;
+    public string RecipientValueHash { get; private set; } = default!;
     public NotificationDigestFrequency Frequency { get; private set; }
     public DateTime PeriodStartUtc { get; private set; }
     public DateTime PeriodEndUtc { get; private set; }
@@ -47,7 +48,8 @@ public sealed class NotificationDigestBucket : FullAuditedAggregateRoot<Guid>, I
         ScopeKey = tenantId?.ToString("D") ?? "host";
         Channel = channel;
         RecipientType = recipientType;
-        RecipientValue = global::Shared.Check.NotNullOrWhiteSpace(recipientValue, nameof(recipientValue), maxLength: 256);
+        RecipientValue = global::Shared.Check.NotNullOrWhiteSpace(recipientValue, nameof(recipientValue), maxLength: 4096);
+        RecipientValueHash = global::Notifications.Domain.Notifications.NotificationDestinationFingerprint.Compute(RecipientValue);
         Frequency = frequency;
         PeriodStartUtc = periodStartUtc;
         PeriodEndUtc = periodEndUtc;
@@ -90,9 +92,11 @@ public sealed class NotificationDigestBucket : FullAuditedAggregateRoot<Guid>, I
 
     public void Reopen()
     {
-        if (Status != NotificationDigestBucketStatus.Emitted)
+        if (Status is not (NotificationDigestBucketStatus.Emitted or NotificationDigestBucketStatus.NeedsReview))
         {
             Status = NotificationDigestBucketStatus.Open;
         }
     }
+
+    public void RequireReview() => Status = NotificationDigestBucketStatus.NeedsReview;
 }

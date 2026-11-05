@@ -17,6 +17,7 @@ public class NotificationRecipient : Entity<long>, IMultiTenant
     public NotificationRecipientType RecipientType { get; private set; }
 
     public string RecipientValue { get; private set; } = default!;
+    public string RecipientValueHash { get; private set; } = default!;
 
     protected NotificationRecipient()
     {
@@ -33,6 +34,7 @@ public class NotificationRecipient : Entity<long>, IMultiTenant
         TenantId = tenantId;
         NotificationId = notificationId;
         RecipientType = recipientType;
-        RecipientValue = global::Shared.Check.NotNullOrWhiteSpace(recipientValue, nameof(recipientValue), maxLength: 256);
+        RecipientValue = global::Shared.Check.NotNullOrWhiteSpace(recipientValue, nameof(recipientValue), maxLength: 4096);
+        RecipientValueHash = global::Notifications.Domain.Notifications.NotificationDestinationFingerprint.Compute(RecipientValue);
     }
 }

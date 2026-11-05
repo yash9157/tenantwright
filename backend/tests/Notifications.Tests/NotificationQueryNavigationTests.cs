@@ -470,6 +470,32 @@ public class NotificationQueryNavigationTests
             SharedOnlyTenantDatabases.Locator());
     }
 
+    [Theory]
+    [InlineData(true, NotificationChannel.Email)]
+    [InlineData(false, NotificationChannel.Push)]
+    public async Task Routed_or_push_destinations_require_sensitive_permission_even_when_recipient_display_is_configured(bool routed, NotificationChannel channel)
+    {
+        var tenantId = Guid.NewGuid();
+        await using var context = NotificationsEfCoreTestHarness.BuildDbContext(Guid.NewGuid().ToString(), tenantId);
+        var notification = new Notification(Guid.NewGuid(), tenantId, Guid.NewGuid(), channel, "test", "{}");
+        if (routed)
+            notification.AttachDispatchStep(Guid.NewGuid(), tenantId);
+        var recipient = new NotificationRecipient(1, tenantId, notification.Id,
+            channel == NotificationChannel.Email ? NotificationRecipientType.EmailAddress : NotificationRecipientType.DeviceToken, "sensitive-destination");
+        context.Notifications.Add(notification);
+        context.NotificationRecipients.Add(recipient);
+        context.NotificationDeliveries.Add(new NotificationDelivery(1, tenantId, notification.Id, recipient.Id));
+        await context.SaveChangesAsync();
+        var options = new NotificationsQuerySecurityOptions { IncludeRecipientValue = true };
+        var redacted = await CreateQueryService(context, tenantId, securityOptions: options).GetDeliveriesAsync(notification.Id);
+        Assert.Empty(Assert.Single(redacted).RecipientValue);
+        var audit = new List<AuditLogWriteRequest>();
+        var disclosed = await CreateQueryService(context, tenantId, canReadSensitivePayload: true, securityOptions: options, auditRequests: audit)
+            .GetDeliveriesAsync(notification.Id);
+        Assert.Equal("sensitive-destination", Assert.Single(disclosed).RecipientValue);
+        Assert.Single(audit);
+    }
+
     private sealed class TestPermissionChecker(bool canReadSensitivePayload, bool canRead) : IPermissionChecker
     {
         public Task<bool> IsGrantedAsync(

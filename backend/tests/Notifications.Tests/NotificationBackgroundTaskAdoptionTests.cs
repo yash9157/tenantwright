@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Notifications.Application.Contracts.Delivery;
+using Notifications.Application.Contracts.Dispatches;
 using Notifications.Application.Contracts.Providers;
 using Notifications.Application.Delivery;
 using Notifications.Delivery;
@@ -26,7 +27,7 @@ public class NotificationBackgroundTaskAdoptionTests
             new FixedDeliveryWorker(processedCount: 3), SharedOnlyTenantDatabases.FanOut(),
             new CapturingWakeSignal(),
             new FixedOptionsMonitor<NotificationsDeliveryOptions>(new NotificationsDeliveryOptions()),
-            NullLogger<NotificationDeliveryBackgroundWorker>.Instance);
+            NullLogger<NotificationDeliveryBackgroundWorker>.Instance, new IdleDispatchCoordinator(), new global::Notifications.Application.Dispatches.NotificationDispatchHealthState(TimeProvider.System));
 
         var result = await worker.ExecuteAsync(CreateContext());
 
@@ -42,7 +43,7 @@ public class NotificationBackgroundTaskAdoptionTests
             new FixedDeliveryWorker(processedCount: 0), SharedOnlyTenantDatabases.FanOut(),
             wakeSignal,
             new FixedOptionsMonitor<NotificationsDeliveryOptions>(new NotificationsDeliveryOptions()),
-            NullLogger<NotificationDeliveryBackgroundWorker>.Instance);
+            NullLogger<NotificationDeliveryBackgroundWorker>.Instance, new IdleDispatchCoordinator(), new global::Notifications.Application.Dispatches.NotificationDispatchHealthState(TimeProvider.System));
 
         var result = await worker.ExecuteAsync(CreateContext());
 
@@ -104,6 +105,11 @@ public class NotificationBackgroundTaskAdoptionTests
             consecutiveFailureCount: 0,
             iterationStartedAtUtc: DateTime.UtcNow,
             cancellationToken: CancellationToken.None);
+    }
+
+    private sealed class IdleDispatchCoordinator : INotificationDispatchCoordinator
+    {
+        public Task<int> ProcessBatchAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
     }
 
     private sealed class FixedDeliveryWorker : INotificationDeliveryWorker

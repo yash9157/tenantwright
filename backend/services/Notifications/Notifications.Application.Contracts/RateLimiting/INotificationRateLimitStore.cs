@@ -1,10 +1,17 @@
+using Notifications.Domain.Shared.Enums;
+
 namespace Notifications.Application.Contracts.RateLimiting;
 
-/// <summary>
-/// Backing counter for the rate limiter. Implementations increment a per-window counter for the key
-/// and return the running total within the current window.
-/// </summary>
 public interface INotificationRateLimitStore
 {
-    Task<long> IncrementAndGetAsync(string key, TimeSpan window, int amount, CancellationToken cancellationToken = default);
+    Task<NotificationQuotaReservation> ReserveAsync(NotificationQuotaRequest request,
+        CancellationToken cancellationToken = default);
 }
+
+public sealed record NotificationQuotaRequest(Guid OperationId, Guid? TenantId, NotificationChannel Channel,
+    int Amount, int WindowSeconds, long TenantLimit, long GlobalLimit);
+
+public enum NotificationQuotaDecision { Granted = 1, TenantDenied = 2, GlobalDenied = 3, ConflictingOperation = 4 }
+
+public sealed record NotificationQuotaReservation(NotificationQuotaDecision Decision, long TenantCount,
+    long GlobalCount, DateTime RetryAtUtc);

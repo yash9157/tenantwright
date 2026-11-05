@@ -16,5 +16,7 @@ public enum NotificationDeliveryEventKind
     ProviderDelivered = 12,
     QuietHoursHeld = 13,
     QuietHoursReleased = 14,
-    Delivered = 15
+    Delivered = 15,
+    Cancelled = 16,
+    Expired = 17
 }

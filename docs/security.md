@@ -85,3 +85,35 @@ for composition and failure recovery.
 ## Reporting a vulnerability
 
 The repository has no `SECURITY.md` yet. Until one exists, report vulnerabilities privately to the maintainers rather than in a public issue.
+
+## Notification dispatch operations
+
+`/g5/api/notifications/dispatches` exposes paged list, detail, recipient and routing
+history reads. Each has a corresponding `current-tenant` route. Exact
+`Notifications.Query.Read` is required. Recipient keys, preference identity,
+content/destinations and history actor identity require
+`Notifications.Query.ReadSensitivePayload`; disclosures are audited. Routed child
+and routed digest delivery reads, as well as all push delivery reads, require
+that exact permission before `IncludeRecipientValue` can disclose destinations.
+
+`POST .../{id}/cancel` uses the separate exact
+`Notifications.Dispatches.Cancel` permission. It is audited and idempotent.
+Cancellation stops unclaimed work; it preserves actual in-flight/accepted evidence.
+A read grant confers no cancellation or recovery authority.
+
+`POST .../{id}/steps/{stepId}/retry` (also under `current-tenant`) uses exact
+`Notifications.Deliveries.Resend`, is audited, and requires `ExpectedRevision`.
+It retries an eligible review-required preparation that has no child yet. Once
+a child exists, use its delivery confirm/retry/resend actions. Ordinary routed
+resends requeue that child's delivery rather than clone an unguarded notification.
+Cancelled, expired, contradictory and superseded fallback stages cannot resend.
+Explicit retry clears old attempt/provider correlation before a fresh claim.
+
+Recipient overrides and historical replays cannot clone routed children or
+digests containing routed content. A routed digest also rejects independent
+resend and retry. Operators can confirm acceptance as evidence for all linked
+routes. Submit a new explicit plan for a distinct send. Existing unlinked
+notification override and replay operations keep their exact permissions. Provider
+callbacks require signature verification and bind the authenticated provider
+configuration to the delivery's current attempt in its owning database. Ambiguous
+message identity or database ownership never selects the first matching tenant.

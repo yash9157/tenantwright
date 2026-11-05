@@ -8,7 +8,7 @@ internal static class NotificationContractFactory
     public static Task<NotificationScheduleResult> ScheduleAsync(
         INotificationDeliveryScheduler scheduler,
         Guid? tenantId,
-        NotificationSendRequestedHostEto template,
+        NotificationChannelRequestHost template,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(scheduler);
@@ -22,7 +22,7 @@ internal static class NotificationContractFactory
     public static Task<NotificationScheduleResult> ScheduleAtAsync(
         INotificationDeliveryScheduler scheduler,
         Guid? tenantId,
-        NotificationSendRequestedHostEto template,
+        NotificationChannelRequestHost template,
         DateTime notBeforeUtc,
         CancellationToken cancellationToken = default)
     {
@@ -34,14 +34,17 @@ internal static class NotificationContractFactory
             : scheduler.ScheduleAtAsync(template, notBeforeUtc, cancellationToken);
     }
 
-    private static NotificationSendRequestedTenantEto CreateTenant(
+    private static NotificationChannelRequestTenant CreateTenant(
         Guid tenantId,
-        NotificationSendRequestedHostEto source)
+        NotificationChannelRequestHost source)
     {
-        return new NotificationSendRequestedTenantEto
+        return new NotificationChannelRequestTenant
         {
             TenantId = tenantId,
             RequestId = source.RequestId,
+            DispatchStepId = source.DispatchStepId,
+            SchedulingClaimId = source.SchedulingClaimId,
+            DigestBucketId = source.DigestBucketId,
             Channel = source.Channel,
             Subject = source.Subject,
             TemplateName = source.TemplateName,

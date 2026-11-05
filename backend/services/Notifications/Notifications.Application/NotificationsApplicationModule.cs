@@ -15,6 +15,8 @@ using Notifications.Application.Contracts.Replay;
 using Notifications.Domain;
 using Notifications.Application.Digests;
 using Notifications.Application.Delivery;
+using Notifications.Application.Dispatches;
+using Notifications.Application.Contracts.Dispatches;
 using Notifications.Application.Delivery.Providers;
 using Notifications.Application.Devices;
 using Notifications.Application.Emailing;
@@ -47,7 +49,26 @@ public class NotificationsApplicationModule : BaseModule
         context.Services.TryAddSingleton(TimeProvider.System);
         context.Services.Configure<NotificationsTemplateOptions>(context.Configuration.GetSection("Notifications:Templates"));
         context.Services.Configure<NotificationsEmailOptions>(context.Configuration.GetSection("Notifications:Email"));
-        context.Services.Configure<NotificationsDeliveryOptions>(context.Configuration.GetSection("Notifications:Delivery"));
+        context.Services.AddOptions<NotificationsDeliveryOptions>()
+            .Bind(context.Configuration.GetSection("Notifications:Delivery"))
+            .Validate(options => options.ProviderTimeoutSeconds is >= 1 and <= 30 &&
+                options.ProcessingLeaseSeconds is >= 5 and <= 600 && options.ProcessingLeaseSeconds > options.ProviderTimeoutSeconds,
+                "Notification provider deadlines must be between one and thirty seconds and shorter than the bounded processing lease.")
+            .ValidateOnStart();
+        context.Services.AddOptions<NotificationDispatchOptions>()
+            .Bind(context.Configuration.GetSection(NotificationDispatchOptions.SectionName))
+            .Validate(options => options.MaximumRecipients is >= 1 and <= 100 &&
+                options.MaximumDestinationsPerChannel is >= 1 and <= 10 &&
+                options.MaximumTotalDestinations is >= 1 and <= 1000 &&
+                options.MaximumPayloadBytes is >= 1024 and <= 262144 &&
+                options.DefaultLifetimeDays is >= 1 and <= 30 &&
+                options.ReconciliationBatchSize is >= 1 and <= 100,
+                "Notification dispatch bounds must stay within the reviewed limits.")
+            .ValidateOnStart();
+        context.Services.TryAddTransient<INotificationDispatchScheduler, NotificationDispatchScheduler>();
+        context.Services.TryAddTransient<INotificationDispatchCoordinator, NotificationDispatchCoordinator>();
+        context.Services.TryAddTransient<INotificationDispatchAppService, NotificationDispatchAppService>();
+        context.Services.TryAddSingleton<NotificationDispatchHealthState>();
         context.Services.Configure<NotificationsDeliveryLatencyRollupOptions>(
             context.Configuration.GetSection("Notifications:DeliveryLatencyRollup"));
         context.Services.Configure<NotificationsDigestOptions>(context.Configuration.GetSection("Notifications:Digests"));

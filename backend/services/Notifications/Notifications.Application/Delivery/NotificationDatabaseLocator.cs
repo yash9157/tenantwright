@@ -130,8 +130,16 @@ public sealed class NotificationDatabaseLocator : ITransientDependency
         CancellationToken cancellationToken)
     {
         var owners = await _fanOut.FindOwningDatabasesAsync<NotificationsDbContextApp>(Work, owns, cancellationToken);
+        if (owners.Count > 1)
+            throw new SharedConflictException(NotificationErrorCodes.DatabaseOwnershipAmbiguous,
+                "More than one database owns the notification correlation identity.");
         return owners.Count == 0 ? null : owners[0];
     }
+
+    public Task<TenantDatabase?> FindDispatchDatabaseAsync(Guid dispatchId, CancellationToken cancellationToken = default) =>
+        FindFirstOwnerAsync((scope, token) => ProbeAsync(
+            (context, operationToken) => context.NotificationDispatches.IgnoreQueryFilters().WhereOwnedBy(scope)
+                .AnyAsync(dispatch => dispatch.Id == dispatchId && !dispatch.IsDeleted, operationToken), token), cancellationToken);
 
     private Task<bool> ProbeAsync(
         Func<NotificationsDbContextApp, CancellationToken, Task<bool>> probe,

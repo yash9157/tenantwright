@@ -5,6 +5,13 @@ namespace Notifications.Domain.Shared.Constants;
 /// </summary>
 public static class NotificationErrorCodes
 {
+    public const string DatabaseOwnershipAmbiguous = "notifications_database_ownership_ambiguous";
+    public const string DispatchPlanInvalid = "notification_dispatch_plan_invalid";
+    public const string DispatchScopeMismatch = "notification_dispatch_scope_mismatch";
+    public const string DispatchRequestConflict = "notification_dispatch_request_conflict";
+    public const string DispatchNotFound = "notification_dispatch_not_found";
+    public const string DispatchTransitionConflict = "notification_dispatch_transition_conflict";
+    public const string DispatchPermissionRequired = "notification_dispatch_permission_required";
     public const string NotificationIdRequired = "notification_id_required";
     public const string ReplayOperationIdRequired = "notification_replay_operation_id_required";
     public const string NotificationNotFound = "notification_not_found";

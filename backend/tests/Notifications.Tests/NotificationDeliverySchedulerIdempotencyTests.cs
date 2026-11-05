@@ -106,7 +106,7 @@ public class NotificationDeliverySchedulerIdempotencyTests
             new NoopNotificationDigestPlanner(),
             NullLogger<NotificationDeliveryScheduler>.Instance);
 
-        return await scheduler.ScheduleAsync(new NotificationSendRequestedTenantEto
+        return await scheduler.ScheduleAsync(new NotificationChannelRequestTenant
         {
             RequestId = requestId,
             TenantId = tenantId,

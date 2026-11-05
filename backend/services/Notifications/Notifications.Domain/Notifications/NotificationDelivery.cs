@@ -249,14 +249,19 @@ public class NotificationDelivery : FullAuditedAggregateRoot<long>, IMultiTenant
 
     public void MarkQueuedForOperatorRetry(DateTime utcNow, string? actorId = null)
     {
-        if (Status != NotificationStatus.NeedsReview && Status != NotificationStatus.DeadLettered)
+        if (Status is not (NotificationStatus.Failed or NotificationStatus.NeedsReview or NotificationStatus.DeadLettered))
         {
-            throw new InvalidOperationException("Only review-required or dead-lettered deliveries can be explicitly retried.");
+            throw new InvalidOperationException("Only failed, review-required or dead-lettered deliveries can be explicitly retried.");
         }
 
         Status = NotificationStatus.Queued;
         LastError = null;
         NextAttemptTimeUtc = utcNow;
+        TryCount = 0;
+        DeliveryAttemptId = null;
+        DeliveryAttemptedAtUtc = null;
+        ProviderMessageId = null;
+        ProviderConfigId = null;
         AppendChronology(
             NotificationDeliveryEventKind.Requeued,
             Status,
@@ -264,6 +269,17 @@ public class NotificationDelivery : FullAuditedAggregateRoot<long>, IMultiTenant
             ProviderMessageId,
             actorId: actorId,
             actorType: NotificationDeliveryActorType.Operator);
+    }
+
+    public void StopBeforeSend(DateTime utcNow, bool expired)
+    {
+        if (Status is not (NotificationStatus.Queued or NotificationStatus.Failed))
+            throw new InvalidOperationException("Only an unclaimed delivery can be stopped.");
+        Status = expired ? NotificationStatus.Expired : NotificationStatus.Cancelled;
+        NextAttemptTimeUtc = null;
+        PolicyHeldUntilUtc = null;
+        AppendChronology(expired ? NotificationDeliveryEventKind.Expired : NotificationDeliveryEventKind.Cancelled,
+            Status, utcNow);
     }
 
     public void RecordResendRequested(DateTime utcNow, string? actorId, bool recipientOverride)

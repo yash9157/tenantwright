@@ -1145,7 +1145,7 @@ public class NotificationAdminConsoleTests
         Assert.Equal(NotificationStatus.ProviderAccepted, confirmed.Status);
         Assert.Equal("operator-confirmed", confirmed.ProviderMessageId);
         Assert.Equal(NotificationStatus.Queued, retried.Status);
-        Assert.NotNull(retried.DeliveryAttemptId);
+        Assert.Null(retried.DeliveryAttemptId);
         Assert.Equal(NotificationStatus.ProviderAccepted, (await dbContext.NotificationDeliveries.FindAsync(confirmDelivery.Id))!.Status);
         Assert.Equal(NotificationStatus.Queued, (await dbContext.NotificationDeliveries.FindAsync(retryDelivery.Id))!.Status);
 
@@ -1205,7 +1205,7 @@ public class NotificationAdminConsoleTests
             nameof(Delivery_worker_should_dead_letter_the_final_failed_attempt),
             templateModelJson: "{}",
             maxRetryCount: 1);
-        fixture.Handler.Result = ChannelDeliveryResult.Failed("provider_rejected");
+        fixture.Handler.Result = ChannelDeliveryResult.PermanentRejection("provider_rejected");
 
         var processed = await fixture.Worker.ProcessBatchAsync();
 
@@ -3427,12 +3427,12 @@ public class NotificationAdminConsoleTests
         public Guid? LastTenantId { get; private set; }
 
         public Task<NotificationScheduleResult> ScheduleAsync(
-            NotificationSendRequestedTenantEto input,
+            NotificationChannelRequestTenant input,
             CancellationToken cancellationToken = default)
             => CaptureAsync(CapturedNotificationRequest.From(input));
 
         public Task<NotificationScheduleResult> ScheduleAsync(
-            NotificationSendRequestedHostEto input,
+            NotificationChannelRequestHost input,
             CancellationToken cancellationToken = default)
             => CaptureAsync(CapturedNotificationRequest.From(input));
 

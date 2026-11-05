@@ -14,7 +14,7 @@ public sealed class ConfigurableWhatsAppNotificationSender : IWhatsAppNotificati
         _options = options;
     }
 
-    public Task<WhatsAppSendOutcome> SendAsync(
+    public Task<NotificationProviderSendResult> SendAsync(
         string phoneNumber,
         string templateName,
         string message,
@@ -25,10 +25,7 @@ public sealed class ConfigurableWhatsAppNotificationSender : IWhatsAppNotificati
         switch (mode)
         {
             case NotificationProviderMode.MockSuccess:
-                return Task.FromResult(new WhatsAppSendOutcome
-                {
-                    ProviderMessageId = $"mock-whatsapp-{Guid.CreateVersion7():N}"
-                });
+                return Task.FromResult(NotificationProviderSendResult.Success($"mock-whatsapp-{Guid.CreateVersion7():N}"));
 
             case NotificationProviderMode.Live:
                 throw new NotificationChannelUnavailableException(

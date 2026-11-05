@@ -342,7 +342,10 @@ public sealed class WolverineProviderUnitTests : IDisposable
     {
         TenantId = tenantId,
         RequestId = Guid.NewGuid(),
-        TemplateName = "wolverine-test",
+        DeliveryPlan = new NotificationDeliveryPlan
+        {
+            Steps = [new NotificationChannelPlan { Channel = NotificationSendChannel.Email, TemplateName = "wolverine-test" }]
+        },
         SourceService = WolverineTestTopology.Producer,
         OccurredAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
     };

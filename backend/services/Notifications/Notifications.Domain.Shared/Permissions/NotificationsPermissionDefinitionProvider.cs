@@ -31,6 +31,8 @@ public class NotificationsPermissionDefinitionProvider : PermissionDefinitionPro
         deliveries.AddChild(NotificationsPermissions.Deliveries.OverrideResend, "Resend Failed Notification Deliveries With Recipient Override");
 
         var config = root.AddChild(NotificationsPermissions.Config.Default, "Configuration");
+        var dispatches = root.AddChild(NotificationsPermissions.Dispatches.Default, "Notification Dispatches");
+        dispatches.AddChild(NotificationsPermissions.Dispatches.Cancel, "Cancel Unclaimed Notification Dispatch Work");
         // Provider credentials must be manageable before a channel can be enabled. Delivery remains
         // feature-gated through Notifications.Send.*; configuration itself is feature-neutral.
         config.AddChild(NotificationsPermissions.Config.Email, "Manage Email Provider Config");

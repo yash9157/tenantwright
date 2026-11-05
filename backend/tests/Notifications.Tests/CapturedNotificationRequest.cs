@@ -1,3 +1,4 @@
+using Notifications.Application.Contracts.Delivery;
 using Shared.EventContracts;
 
 namespace Notifications.Tests;
@@ -20,7 +21,7 @@ internal sealed record CapturedNotificationRequest(
     Guid? PreferenceUserId,
     string? PreferenceKey)
 {
-    public static CapturedNotificationRequest From(NotificationSendRequestedTenantEto input)
+    public static CapturedNotificationRequest From(NotificationChannelRequestTenant input)
     {
         ArgumentNullException.ThrowIfNull(input);
         return Create(input.TenantId, input.RequestId, input.Channel, input.Subject, input.TemplateName,
@@ -29,7 +30,7 @@ internal sealed record CapturedNotificationRequest(
             input.PreferenceUserId, input.PreferenceKey);
     }
 
-    public static CapturedNotificationRequest From(NotificationSendRequestedHostEto input)
+    public static CapturedNotificationRequest From(NotificationChannelRequestHost input)
     {
         ArgumentNullException.ThrowIfNull(input);
         return Create(null, input.RequestId, input.Channel, input.Subject, input.TemplateName,

@@ -3,7 +3,8 @@ namespace Notifications.Application.RateLimiting;
 /// <summary>
 /// Per-tenant, per-channel send quotas enforced by the scheduler before persisting a notification.
 /// Bound from <c>Notifications:RateLimit</c>. Disabled by default (opt-in): enable and tune per
-/// deployment. The limit is a coarse guard against a misbehaving publisher, not a security control.
+/// deployment. Atomic stable-operation reservations cover tenant/channel and global budgets;
+/// quotas do not replace authorization.
 /// </summary>
 public sealed class NotificationsRateLimitOptions
 {

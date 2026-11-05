@@ -1,4 +1,4 @@
-using Notifications.Domain.Shared.Constants;
+using Notifications.Application.Contracts.Channels;
 using Notifications.Domain.Shared.Enums;
 
 namespace Notifications.Application.Contracts.Delivery;
@@ -26,44 +26,28 @@ public sealed class ChannelDeliveryContext
 
 public sealed class ChannelDeliveryResult
 {
-    public bool IsSuccess { get; init; }
-    public bool IsUnavailable { get; init; }
+    public required NotificationSendOutcome Outcome { get; init; }
+    public bool IsSuccess => Outcome is NotificationSendOutcome.Accepted or NotificationSendOutcome.Delivered;
+    public bool IsUnavailable => Outcome == NotificationSendOutcome.UnavailableBeforeSend;
     public string? ProviderMessageId { get; init; }
     public Guid? ProviderConfigId { get; init; }
     public string? ErrorCode { get; init; }
     public string? UserId { get; init; }
+    public DateTime? RetryAfterUtc { get; init; }
 
-    public static ChannelDeliveryResult Success(string? providerMessageId = null, string? userId = null, Guid? providerConfigId = null)
+    public static ChannelDeliveryResult Success(string? providerMessageId = null, string? userId = null, Guid? providerConfigId = null) =>
+        new() { Outcome = NotificationSendOutcome.Accepted, ProviderMessageId = providerMessageId, UserId = userId, ProviderConfigId = providerConfigId };
+    public static ChannelDeliveryResult FromProvider(NotificationProviderSendResult result) => new()
     {
-        return new ChannelDeliveryResult
-        {
-            IsSuccess = true,
-            ProviderMessageId = providerMessageId,
-            ProviderConfigId = providerConfigId,
-            UserId = userId
-        };
-    }
-
-    public static ChannelDeliveryResult Failed(string errorCode)
-    {
-        return new ChannelDeliveryResult
-        {
-            IsSuccess = false,
-            ErrorCode = string.IsNullOrWhiteSpace(errorCode)
-                ? "delivery_failed"
-                : errorCode.Trim()
-        };
-    }
-
-    public static ChannelDeliveryResult Unavailable(string errorCode)
-    {
-        return new ChannelDeliveryResult
-        {
-            IsSuccess = false,
-            IsUnavailable = true,
-            ErrorCode = string.IsNullOrWhiteSpace(errorCode)
-                ? "channel_unavailable"
-                : errorCode.Trim()
-        };
-    }
+        Outcome = result.Outcome,
+        ProviderMessageId = result.ProviderMessageId,
+        ProviderConfigId = result.ProviderConfigId,
+        ErrorCode = result.ErrorCode,
+        RetryAfterUtc = result.RetryAfterUtc
+    };
+    public static ChannelDeliveryResult PermanentRejection(string code) => new() { Outcome = NotificationSendOutcome.PermanentRejection, ErrorCode = code };
+    public static ChannelDeliveryResult RetryableRejection(string code, DateTime? retryAfterUtc = null) =>
+        new() { Outcome = NotificationSendOutcome.RetryableRejection, ErrorCode = code, RetryAfterUtc = retryAfterUtc };
+    public static ChannelDeliveryResult Unavailable(string code) => new() { Outcome = NotificationSendOutcome.UnavailableBeforeSend, ErrorCode = code };
+    public static ChannelDeliveryResult Ambiguous(string code) => new() { Outcome = NotificationSendOutcome.Ambiguous, ErrorCode = code };
 }

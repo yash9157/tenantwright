@@ -148,3 +148,19 @@ These scripts in `scripts/` check charts offline:
 - `verify-postgresql-pooling.ps1`
 
 There is no CI workflow in the repository yet.
+
+## Notification dispatch migration
+
+`20261105054017_AddNotificationDispatches` appends to the Notifications migration
+chain. It adds dispatch/recipient/step/history and redacted archive tables, scoped
+child linkage, and fixed destination fingerprints. Existing recipient and digest
+destinations are backfilled before their unique indexes change; large push
+subscriptions no longer enter wide raw-destination indexes.
+
+Apply through the existing reviewed migration workflow to the shared and every
+assigned dedicated Notifications database. Verify the exact target and applied
+migration IDs before persistent execution. No previous migration is rewritten.
+The down migration refuses populated dispatch/archive data or destinations that
+cannot fit the old 256-character bound; use a forward correction in those cases.
+Coordinate the producer/consumer wire change described in [Messaging](messaging.md#notification-delivery-plans).
+Generating or testing this migration does not authorize a persistent database reset.

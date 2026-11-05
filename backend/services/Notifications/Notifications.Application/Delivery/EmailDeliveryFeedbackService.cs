@@ -52,17 +52,18 @@ public sealed class EmailDeliveryFeedbackService : IEmailDeliveryFeedbackService
             return EmailFeedbackRecordResult.Duplicate;
         }
 
-        var delivery = await unitOfWorkDbContext.NotificationDeliveries
+        var matches = await unitOfWorkDbContext.NotificationDeliveries
             .IgnoreQueryFilters()
             .Include(x => x.Notification)
-            .FirstOrDefaultAsync(
+            .Where(
                 x => x.ProviderMessageId == feedbackEvent.ProviderMessageId &&
-                     x.Notification.Channel == NotificationChannel.Email,
-                cancellationToken);
-        if (delivery == null)
+                     x.Notification.Channel == NotificationChannel.Email)
+            .Take(2).ToListAsync(cancellationToken);
+        if (matches.Count != 1)
         {
             return EmailFeedbackRecordResult.Unmatched;
         }
+        var delivery = matches[0];
 
         var now = DateTime.UtcNow;
         var receipt = new NotificationDeliveryReceipt(
@@ -100,11 +101,18 @@ public sealed class EmailDeliveryFeedbackService : IEmailDeliveryFeedbackService
                 feedbackEvent.SafeReason);
         }
 
+        var contradictoryReceipt = false;
         // A hard bounce or complaint invalidates an externally accepted delivery.
         if (feedbackEvent.EventType is EmailDeliveryEventType.Bounce or EmailDeliveryEventType.Complaint &&
             delivery.Status is NotificationStatus.ProviderAccepted or NotificationStatus.Delivered)
         {
-            delivery.MarkDeadLettered(
+            if (delivery.Status == NotificationStatus.Delivered)
+            {
+                contradictoryReceipt = true;
+                delivery.MarkNeedsReview("contradictory_delivery_evidence", now, normalizedProvider, NotificationDeliveryActorType.Provider);
+            }
+            else
+                delivery.MarkDeadLettered(
                 $"email_{feedbackEvent.EventType.ToString().ToLowerInvariant()}",
                 now,
                 normalizedProvider,
@@ -112,6 +120,8 @@ public sealed class EmailDeliveryFeedbackService : IEmailDeliveryFeedbackService
                 feedbackEvent.ProviderCode);
         }
 
+        await global::Notifications.Application.Dispatches.NotificationDispatchGate.DirtyAsync(
+            unitOfWorkDbContext, delivery.Notification, now, cancellationToken, contradictoryReceipt);
         await unitOfWorkDbContext.SaveChangesAsync(cancellationToken);
         return EmailFeedbackRecordResult.Accepted;
     }

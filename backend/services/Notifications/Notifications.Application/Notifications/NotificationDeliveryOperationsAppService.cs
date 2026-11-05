@@ -1,3 +1,4 @@
+using Notifications.Application.Dispatches;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
@@ -133,6 +134,7 @@ public sealed class NotificationDeliveryOperationsAppService : INotificationDeli
     {
         await EnsurePermissionAsync(NotificationsPermissions.Deliveries.OverrideResend);
         var delivery = await GetFailedDeliveryAsync(input.DeliveryId, cancellationToken);
+        await NotificationDispatchRecoveryGate.RejectDetachedCloneAsync(_notificationRepository, delivery.Notification, cancellationToken);
         var recipients = NormalizeOverrideRecipients(input.Recipients);
 
         return new NotificationDeliveryOverridePreviewDto
@@ -158,13 +160,14 @@ public sealed class NotificationDeliveryOperationsAppService : INotificationDeli
     {
         await EnsurePermissionAsync(NotificationsPermissions.Deliveries.OverrideResend);
         var delivery = await GetFailedDeliveryAsync(input.DeliveryId, cancellationToken);
+        await NotificationDispatchRecoveryGate.RejectDetachedCloneAsync(_notificationRepository, delivery.Notification, cancellationToken);
         var recipients = NormalizeOverrideRecipients(input.Recipients);
 
         var model = DeserializeTemplateModel(delivery.Notification);
         var scheduleResult = await NotificationContractFactory.ScheduleAsync(
             _deliveryScheduler,
                 delivery.Notification.TenantId,
-                new NotificationSendRequestedHostEto
+                new NotificationChannelRequestHost
                 {
                     RequestId = Guid.CreateVersion7(),
                     Channel = MapChannel(delivery.Notification.Channel),
@@ -217,6 +220,7 @@ public sealed class NotificationDeliveryOperationsAppService : INotificationDeli
         }
 
         var actorId = GetCurrentActorId();
+        await ApplyDispatchRecoveryAsync(delivery, retry: false, actorId, cancellationToken);
         delivery.MarkProviderAccepted(
             _timeProvider.GetUtcNow().UtcDateTime,
             input.ProviderMessageId,
@@ -233,7 +237,9 @@ public sealed class NotificationDeliveryOperationsAppService : INotificationDeli
     {
         await EnsurePermissionAsync(NotificationsPermissions.Deliveries.Resend);
         var delivery = await GetReviewDeliveryAsync(input.DeliveryId, cancellationToken);
-        delivery.MarkQueuedForOperatorRetry(_timeProvider.GetUtcNow().UtcDateTime, GetCurrentActorId());
+        var actorId = GetCurrentActorId();
+        await ApplyDispatchRecoveryAsync(delivery, retry: true, actorId, cancellationToken);
+        delivery.MarkQueuedForOperatorRetry(_timeProvider.GetUtcNow().UtcDateTime, actorId);
         await _deliveryRepository.UpdateAsync(delivery, autoSave: true, cancellationToken);
         return MapReconcileResult(delivery);
     }
@@ -244,11 +250,29 @@ public sealed class NotificationDeliveryOperationsAppService : INotificationDeli
         int failedDeliveryCount,
         CancellationToken cancellationToken)
     {
+        if (notification.DispatchStepId.HasValue)
+        {
+            var actor = GetCurrentActorId();
+            foreach (var delivery in deliveries)
+            {
+                await ApplyDispatchRecoveryAsync(delivery, retry: true, actor, cancellationToken);
+                delivery.MarkQueuedForOperatorRetry(_timeProvider.GetUtcNow().UtcDateTime, actor);
+                delivery.RecordResendRequested(_timeProvider.GetUtcNow().UtcDateTime, actor, recipientOverride: false);
+            }
+            await _deliveryRepository.UpdateManyAsync(deliveries, autoSave: true, cancellationToken);
+            return new ResendNotificationDeliveryResultDto
+            {
+                Accepted = true, RequestId = notification.RequestId, NotificationId = notification.Id,
+                OriginalNotificationId = notification.Id, QueuedCount = deliveries.Count,
+                RecipientCount = deliveries.Count, FailedDeliveryCount = failedDeliveryCount
+            };
+        }
+        await NotificationDispatchRecoveryGate.RejectDetachedCloneAsync(_notificationRepository, notification, cancellationToken);
         var model = DeserializeTemplateModel(notification);
         var scheduleResult = await NotificationContractFactory.ScheduleAsync(
             _deliveryScheduler,
                 notification.TenantId,
-                new NotificationSendRequestedHostEto
+                new NotificationChannelRequestHost
                 {
                     RequestId = Guid.CreateVersion7(),
                     Channel = MapChannel(notification.Channel),
@@ -332,8 +356,8 @@ public sealed class NotificationDeliveryOperationsAppService : INotificationDeli
                 "DeliveryId is required.");
         }
 
-        var deliveryQueryable = await _deliveryRepository.GetQueryableAsync();
-        var delivery = await deliveryQueryable.FirstOrDefaultAsync(x => x.Id == deliveryId, cancellationToken);
+        var deliveryQueryable = await _deliveryRepository.WithDetailsAsync(delivery => delivery.Notification);
+        var delivery = await deliveryQueryable.Include(delivery => delivery.Notification).FirstOrDefaultAsync(x => x.Id == deliveryId, cancellationToken);
 
         if (delivery == null)
         {
@@ -352,6 +376,10 @@ public sealed class NotificationDeliveryOperationsAppService : INotificationDeli
 
         return delivery;
     }
+
+    private Task ApplyDispatchRecoveryAsync(NotificationDelivery delivery, bool retry, string actorId, CancellationToken cancellationToken) =>
+        NotificationDispatchRecoveryGate.ApplyAsync(_notificationRepository, delivery.Notification, retry,
+            _timeProvider.GetUtcNow().UtcDateTime, actorId, cancellationToken);
 
     private static ReconcileNotificationDeliveryResultDto MapReconcileResult(NotificationDelivery delivery)
     {

@@ -57,8 +57,7 @@ public sealed class TwilioSmsWebhookController : ControllerBase
         // Correlate in the database that owns the message: a dedicated tenant's deliveries live in its own database.
         using var owningDatabase = _databaseLocator.Enter(await _databaseLocator.FindProviderMessageDatabaseAsync(messageSid, cancellationToken));
         var config = await _resolver.ResolveByProviderMessageIdAsync(messageSid, NotificationChannel.Sms, cancellationToken);
-        var authToken = config?.Secret;
-        if (string.IsNullOrWhiteSpace(authToken))
+        if (config is null || string.IsNullOrWhiteSpace(config.Secret))
         {
             // Unknown message id or provider not configured; reject so callbacks are never accepted unvalidated.
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
@@ -67,7 +66,7 @@ public sealed class TwilioSmsWebhookController : ControllerBase
         var formPairs = form.Select(kv => new KeyValuePair<string, string>(kv.Key, kv.Value.ToString()));
         var signature = Request.Headers["X-Twilio-Signature"].ToString();
 
-        if (!TwilioSignatureValidator.IsValid(authToken, BuildRequestUrl(config!), formPairs, signature))
+        if (!TwilioSignatureValidator.IsValid(config.Secret, BuildRequestUrl(config), formPairs, signature))
         {
             return Unauthorized();
         }
@@ -81,6 +80,7 @@ public sealed class TwilioSmsWebhookController : ControllerBase
             await _receiptService.ApplyProviderStatusAsync(
                 messageSid,
                 NotificationChannel.Sms,
+                config.ConfigId,
                 mapped.Value,
                 string.IsNullOrWhiteSpace(errorCode) ? null : errorCode,
                 cancellationToken);
