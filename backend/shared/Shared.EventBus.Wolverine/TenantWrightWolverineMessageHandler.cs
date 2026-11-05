@@ -58,8 +58,18 @@ internal sealed class TenantWrightWolverineMessageHandler<TMessage> : MessageHan
         {
             throw new TenantWrightConsumeInterruptedException();
         }
+        catch (Exception exception) when (exception is not MessagingSecurityException &&
+                                          delivery.TrustHeaders.ContainsKey(TenantWrightTrustHeaders.ReplayId))
+        {
+            // The neutral verifier consumes an authorization once, before the inbox transaction. A failed replay
+            // requires another operator decision; retrying this envelope would reuse a consumed authorization.
+            throw new WolverineReplayAttemptFailedException(exception);
+        }
     }
 }
+
+internal sealed class WolverineReplayAttemptFailedException(Exception innerException)
+    : Exception("An authorized replay attempt failed and requires a new authorization.", innerException);
 
 /// <summary>
 /// The host stopped while a delivery was being handled. The failure policy leaves the delivery unsettled, so the broker

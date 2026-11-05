@@ -56,6 +56,16 @@ See [Messaging → Trust model](messaging.md#trust-model). In brief:
 - consumers verify origin, route authorization, freshness and the broker-validated `user_id`;
 - keys can be revoked.
 
+Wolverine signed dead-letter recovery uses the endpoint owner's terminal signature
+and the separate `tenantwright-messaging-replay` broker identity and signing key.
+The operator must supply explicit authorization, durable audit and terminal lookup
+adapters. Replay IDs are issued and consumed in the destination service's shared
+database; tenant context and business inbox deduplication remain enforced. An
+authorization permits one consumer attempt. A failed attempt requires a new
+authorization and ID, and expired origins, revoked keys and unsigned quarantine
+cannot be replayed. See [Terminal custody and protected replay](messaging.md#terminal-custody-and-protected-replay)
+for composition and failure recovery.
+
 ## Audit logs
 
 - **Capture.** Every service captures audit records (`Shared.AuditLogs`) and sends them to AuditLogs as a command. With messaging disabled they are written to the structured log instead.

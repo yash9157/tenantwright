@@ -37,7 +37,9 @@ internal static class TenantWrightWolverineRegistration
     /// unknown contract or undeserializable payload is dead-lettered at once; a failure the handler marks
     /// <see cref="ITenantWrightTransientMessageFailure"/> is retried in process after <see cref="TransientRetryCooldowns"/>;
     /// any other failure is retried in process at <c>Messaging:Delivery:ImmediateRetryMilliseconds</c>; both are then
-    /// dead-lettered; a host shutdown leaves the delivery to the broker. Settings are read from <paramref name="configuration"/> here because Wolverine is
+    /// signed and confirmed to the dead-letter exchange. An authorized replay permits one attempt before terminal
+    /// custody. Blocked terminal publication retains the unacknowledged delivery; host shutdown leaves it to the broker.
+    /// Settings are read from <paramref name="configuration"/> here because Wolverine is
     /// configured at registration; <see cref="MessagingOptionsValidator"/> validates the same section at startup.
     /// </para>
     /// <para>
@@ -62,6 +64,10 @@ internal static class TenantWrightWolverineRegistration
             provider.GetRequiredService<IOptions<MessagingOptions>>().Value, automaticRecovery: true));
         services.AddSingleton<RabbitMqConfirmedPublisher>();
         services.AddSingleton<ITenantWrightMessagingTransport, WolverineMessagingTransport>();
+        services.AddSingleton<WolverineTerminalPublisher>();
+        services.AddSingleton<WolverineTerminalMessageReader>();
+        services.AddSingleton<IProtectedReplayTransport, WolverineProtectedReplayTransport>();
+        services.AddSingleton<ITenantWrightReplayCustodyVerifier, WolverineReplayCustodyVerifier>();
         services.AddSingleton<ILogger<HandlerDiscovery>, WolverineDiscoveryLogger>();
         services.AddAsyncWolverineExtension<WolverineStartupVerification>();
         services.AddHealthChecks().AddCheck<WolverineMessagingHealthCheck>(
@@ -126,12 +132,14 @@ internal static class TenantWrightWolverineRegistration
             static (_, _, _) => ValueTask.CompletedTask,
             "Leave the delivery unsettled for broker redelivery after the host stopped");
         options.OnException<MessagingSecurityException>().MoveToErrorQueue();
+        options.OnException<WolverineReplayAttemptFailedException>().CustomActionIndefinitely(
+            WolverineTerminalFailure.ExecuteAsync, "Record signed terminal custody for a failed replay attempt");
         options.OnException(TenantWrightMessageFailureClassifier.IsTransient)
             .RetryWithCooldown(TransientRetryCooldowns)
-            .Then.MoveToErrorQueue();
+            .Then.CustomActionIndefinitely(WolverineTerminalFailure.ExecuteAsync, "Record signed terminal custody");
         options.OnAnyException()
             .RetryWithCooldown(delivery.ImmediateRetryMilliseconds.Select(value => TimeSpan.FromMilliseconds(value)).ToArray())
-            .Then.MoveToErrorQueue();
+            .Then.CustomActionIndefinitely(WolverineTerminalFailure.ExecuteAsync, "Record signed terminal custody");
     }
 
     private static void ConfigureTopology(
@@ -178,6 +186,7 @@ internal static class TenantWrightWolverineRegistration
 
             foreach (var exchange in endpoint.ContractTypes
                          .Select(contractType => TenantWrightWolverineTopology.ExchangeFor(catalog.GetRoute(contractType)))
+                         .Append(endpoint.Name)
                          .Distinct(StringComparer.Ordinal))
             {
                 rabbit.BindExchange(exchange, ExchangeType.Fanout).ToQueue(endpoint.Name, string.Empty);

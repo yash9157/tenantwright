@@ -75,8 +75,9 @@ A handler signals "valid message, retry later" by throwing an exception that imp
 | Failure | Wolverine | MassTransit |
 |---|---|---|
 | `MessagingSecurityException` | Error queue at once | Error queue at once (never retried or redelivered) |
-| Marked transient | Retried in process after 1, 5, 15, 30 and 60 s (about 2 minutes), then the error queue | Immediate retries (250 and 1000 ms), then delayed redelivery after 30, 120 and 600 s, then the error queue |
-| Anything else | Immediate retries (250 and 1000 ms), then the error queue | Same as marked transient |
+| Marked transient | Retried in process after 1, 5, 15, 30 and 60 s (about 2 minutes), then signed terminal custody | Immediate retries (250 and 1000 ms), then delayed redelivery after 30, 120 and 600 s, then the error queue |
+| Anything else | Immediate retries (250 and 1000 ms), then signed terminal custody | Same as marked transient |
+| Failed authorized replay | Signed terminal custody after one attempt; requires fresh authorization | Existing provider retry rules; replay IDs remain single-use |
 
 The Wolverine provider keeps no message store, and RabbitMQ has no native scheduling there, so `ScheduleRetry` has nowhere to keep a retry. Its transient cooldowns therefore run inline. The delivery stays unacknowledged and occupies one of the endpoint's `ConcurrentMessageLimit` consumer slots for at most the sum of the cooldowns. The endpoint's other slots and every other endpoint keep consuming, and a host shutdown leaves the delivery to the broker.
 
@@ -90,17 +91,79 @@ Code lives in `MessagingTrust.cs`, `MessagingAttestations.cs` and `TenantWrightI
 - **Tenant restoration.** A contract is either `HostOnly` or `TenantRequired`. The signed scope and tenant must match the contract and the message body. The handler then runs inside `CurrentTenant.Change(tenantId)`.
 - **Failures.** Verification failures throw `MessagingSecurityException` and are never retried as transient errors.
 
-### MassTransit-only custody features
+### Terminal custody and protected replay
 
-Wolverine registers no redelivery or replay custody verifier, so redelivered and replayed custody shapes are always rejected. Under Wolverine:
+`ProtectedReplayService` verifies replay material, calls the required authorization
+and audit adapters, reserves a single-use replay ID in `MessagingReplayState`, and
+signs a fresh authorization as `tenantwright-messaging-replay`. Both provider
+consumers can verify protected replay custody. Missing adapters fail resolution;
+there is no default allow policy or public replay endpoint.
 
-- A `MessagingSecurityException` goes straight to the error queue.
-- Marked transient failures get the longer in-process cooldowns, and other failures the immediate-retry cooldowns, then go to the error queue (see [Failure handling](#failure-handling)).
-- Quorum queues use native per-queue dead-lettering.
+**Wolverine:** after ordinary handler retries are exhausted,
+`WolverineTerminalPublisher` signs the raw body and origin signature chain as the
+receiving endpoint owner. It publishes a persistent copy to the existing
+`{endpoint}-dead-letter` exchange with mandatory routing and a publisher
+confirmation before acknowledging the original. Publication waits are bounded to
+30 seconds. A failed or ambiguous publication retains the unacknowledged original
+and retries publication with exponential backoff from 1 to 30 seconds. Readiness
+is unhealthy while publication is blocked; shutdown leaves the original
+unsettled. No application handler is re-executed during this publication recovery.
+Ambiguous confirmation or acknowledgment can produce more
+than one terminal copy; the business inbox still deduplicates by original message
+ID and endpoint.
 
-- **Delayed redelivery custody.** Queue-based delayed redelivery uses the fixed `DelayedRedeliverySeconds` schedule. The endpoint owner re-sends the message with a signed relay attestation, which is checked against RabbitMQ `x-death` history.
-- **Signed terminal custody.** Messages moved to error or dead-letter queues carry a signed terminal attestation covering the raw body and the origin and relay chains.
-- **Protected replay.** `ProtectedReplayService` re-verifies a terminal message, authorizes and audits the replay, and issues a single-use replay id stored in `MessagingReplayState`. It then re-sends as `tenantwright-messaging-replay`. Consumers accept each replay id only once.
+Security rejections, malformed JSON and unknown contracts use native quorum
+dead-lettering. They carry no trusted terminal signature and cannot be recovered
+through protected replay. Copying native dead letters back into a receive queue
+continues to fail closed, including when RabbitMQ has removed `user_id`.
+
+To compose an operator recovery tool using the Wolverine adapter:
+
+1. Read a signed terminal snapshot from the selected endpoint's dead-letter
+   queue. Retain the message until recovery is confirmed; never auto-acknowledge
+   its only copy just to inspect it. Keep payloads out of logs and apply the
+   owning service's access policy to terminal storage.
+2. Use `WolverineTerminalMessageReader.Read(endpointName, properties, body)` inside
+   `IProtectedTerminalStore.FindAsync`. The reader re-verifies endpoint ownership,
+   terminal and origin signatures, raw and canonical digests, approved producer,
+   tenant binding, origin freshness and terminal retention. Revoked keys, expired
+   origins and unsigned historical dead letters remain ineligible.
+3. Compose the neutral core and Wolverine provider with the dedicated replay
+   broker identity and signing key. Supply `IProtectedReplayAuthorization` and
+   `IProtectedReplayAudit` with the owning operator policy and durable audit sink.
+   Authorization must bind the requester, destination and tenant represented by
+   the verified terminal; an audit/authorization failure must stop the operation.
+   Provision the replay broker user's write access only to the intended endpoint
+   exchanges and install its public verification key on the consuming hosts.
+   Terminal lookup can use a separate service-owned read identity; do not give
+   the replay publisher broad queue-read access. No replay credentials are
+   generated or broadly granted by this feature.
+4. Register `AddTenantWrightProtectedReplayIdempotencyStore<TDbContext>` against
+   the **destination service's shared database**, which its consumers already use
+   for replay IDs, even when the business message targets a dedicated tenant
+   database. Use least-privilege access for this operator composition. An unrelated
+   operator database will not issue IDs the consumer recognizes.
+5. Call `ProtectedReplayService.ReplayAsync` with a fresh replay ID and recorded
+   authorization, audit ID and reason. The adapter sends only the original origin
+   headers and the new replay signature to the selected endpoint's exchange.
+   Every endpoint, including event subscribers, has its own exchange so this
+   operation does not fan out. The consumer requires a fresh broker publication
+   without death, relay or terminal headers and consumes the ID exactly once.
+
+A Wolverine replay authorizes **one consumer attempt**. Handler failure creates a
+new signed terminal copy and requires a new operator decision and replay ID;
+ordinary retries cannot reuse the consumed authorization. A crash after ID
+consumption or ambiguous publication likewise requires investigation and a fresh
+ID. The original message ID remains unchanged, so a previously committed inbox
+entry prevents repeated business effects. Replay does not renew the origin's
+age or bypass key revocation. There is no broker delayed-redelivery verifier on
+Wolverine.
+
+**MassTransit:** queue-based delayed redelivery uses the fixed
+`DelayedRedeliverySeconds` schedule. The endpoint owner signs relay custody,
+checked against RabbitMQ `x-death` history. Error and dead-letter copies carry
+terminal attestations over the raw body and origin/relay chains. Its existing
+protected replay send pipe carries the original chain plus replay authorization.
 
 ## Topology
 

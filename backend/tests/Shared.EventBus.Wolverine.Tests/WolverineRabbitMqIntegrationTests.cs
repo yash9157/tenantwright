@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -299,6 +300,195 @@ public sealed class WolverineRabbitMqIntegrationTests(WolverineInfrastructureFix
     }
 
     [Fact]
+    public async Task Failed_command_is_signed_and_authorized_replay_commits_one_tenant_effect()
+    {
+        var (producer, consumer) = await StartProducerAndConsumerAsync();
+        var tenantId = Guid.NewGuid();
+        var command = WolverineProviderUnitTests.NewCommand(tenantId);
+        var key = command.RequestId.ToString("D");
+        consumer.Probe.FailTransiently(key, times: 3);
+        await producer.InUnitOfWorkAsync(
+            services => services.GetRequiredService<ITenantWrightMessageSender>().SendCommandAsync(command), tenantId);
+        var terminal = await TakeDeadLetterAsync(WolverineTestTopology.CommandEndpoint);
+        Assert.Equal(WolverineTestTopology.Consumer, terminal.BasicProperties.UserId);
+        Assert.False(terminal.BasicProperties.Headers!.ContainsKey("x-death"));
+        Assert.Equal(0, await consumer.EffectCountAsync(key));
+
+        await using var replay = ReplayOperator(consumer, terminal, WolverineTestTopology.CommandEndpoint);
+        var material = replay.GetRequiredService<WolverineTerminalMessageReader>()
+            .Read(WolverineTestTopology.CommandEndpoint, terminal.BasicProperties, terminal.Body);
+        var request = ReplayRequest(material);
+        await ReplayAsync(replay, request);
+        await WaitForEffectAsync(consumer, key);
+        Assert.Equal(4, consumer.Probe.AttemptsFor(key));
+        Assert.Equal(tenantId, consumer.Probe.TenantFor(key));
+        Assert.Single(await consumer.InboxAsync(material.MessageId));
+        Assert.Single(replay.GetRequiredService<ReplayAudit>().Requests);
+
+        // The exact same ID cannot issue twice, and a fresh broker publication cannot reuse its consumed authority.
+        await Assert.ThrowsAsync<MessagingSecurityException>(() => ReplayAsync(replay, request));
+        await using var scope = replay.CreateAsyncScope();
+        var replayRow = await scope.ServiceProvider.GetRequiredService<WolverineTestDbContext>()
+            .Set<TenantWrightReplayState>().SingleAsync(state => state.ReplayId == request.ReplayId);
+        Assert.NotNull(replayRow.ConsumedAt);
+        var replayAttestation = replay.GetRequiredService<TenantWrightAttestationService>().CreateReplay(
+            material.TerminalRecordSha256, material.OriginalChainSha256, material.MessageId, material.PayloadSha256,
+            request.Destination, request.ReplayId, request.AuditId, replayRow.ExpiresAt.AddMinutes(-15), replayRow.ExpiresAt);
+        var (properties, body) = WolverineProtectedReplayTransport.CreatePublication(
+            new ProtectedReplayDispatch(material, replayAttestation), WolverineTestTopology.ProducerCatalog(),
+            replay.GetRequiredService<TenantWrightAttestationService>(),
+            replay.GetRequiredService<Microsoft.Extensions.Options.IOptions<MessagingOptions>>().Value, DateTimeOffset.UtcNow);
+        await using var client = Client(WolverineTestTopology.Replay);
+        await client.PublishAsync(request.Destination, properties, body);
+        await TakeDeadLetterAsync(request.Destination);
+        Assert.Equal(4, consumer.Probe.AttemptsFor(key));
+        Assert.Equal(1, await consumer.EffectCountAsync(key));
+    }
+
+    [Fact]
+    public async Task Event_replay_targets_only_the_failed_endpoint_instead_of_fanning_out()
+    {
+        var (producer, consumer) = await StartProducerAndConsumerAsync();
+        var tenantId = Guid.NewGuid();
+        var key = Guid.NewGuid().ToString("D");
+        var stamped = producer.Stamp(Grants(tenantId, key), TenantWrightMessageRouteKind.Event, tenantId);
+        consumer.Probe.FailTransiently(key, times: 3);
+        await using var client = Client(WolverineTestTopology.Producer);
+        await client.PublishAsync(WolverineTestTopology.FirstEventEndpoint, Properties(stamped, WolverineTestTopology.Producer), stamped.Payload);
+        var terminal = await TakeDeadLetterAsync(WolverineTestTopology.FirstEventEndpoint);
+
+        await using var replay = ReplayOperator(consumer, terminal, WolverineTestTopology.FirstEventEndpoint);
+        var material = replay.GetRequiredService<WolverineTerminalMessageReader>()
+            .Read(WolverineTestTopology.FirstEventEndpoint, terminal.BasicProperties, terminal.Body);
+        await ReplayAsync(replay, ReplayRequest(material));
+        await WaitForEffectAsync(consumer, key);
+        await Task.Delay(Settle);
+
+        Assert.Equal(4, consumer.Probe.AttemptsFor(key));
+        Assert.Equal(1, await consumer.EffectCountAsync(key));
+        Assert.Equal(WolverineTestTopology.FirstEventEndpoint, Assert.Single(await consumer.InboxAsync(material.MessageId)).Endpoint);
+    }
+
+    [Fact]
+    public async Task Failed_replay_is_terminal_after_one_attempt_and_can_receive_fresh_authorization()
+    {
+        var (producer, consumer) = await StartProducerAndConsumerAsync();
+        var tenantId = Guid.NewGuid();
+        var command = WolverineProviderUnitTests.NewCommand(tenantId);
+        var key = command.RequestId.ToString("D");
+        consumer.Probe.FailTransiently(key, times: 10, markedTransient: false);
+        await producer.InUnitOfWorkAsync(
+            services => services.GetRequiredService<ITenantWrightMessageSender>().SendCommandAsync(command), tenantId);
+        var firstTerminal = await TakeDeadLetterAsync(WolverineTestTopology.CommandEndpoint);
+        await using (var replay = ReplayOperator(consumer, firstTerminal, WolverineTestTopology.CommandEndpoint))
+        {
+            var material = replay.GetRequiredService<WolverineTerminalMessageReader>()
+                .Read(WolverineTestTopology.CommandEndpoint, firstTerminal.BasicProperties, firstTerminal.Body);
+            await ReplayAsync(replay, ReplayRequest(material));
+        }
+        var secondTerminal = await TakeDeadLetterAsync(WolverineTestTopology.CommandEndpoint);
+        Assert.Equal(4, consumer.Probe.AttemptsFor(key));
+        Assert.Equal(0, await consumer.EffectCountAsync(key));
+        Assert.DoesNotContain(secondTerminal.BasicProperties.Headers!.Keys, TenantWrightTrustHeaders.Replay.Contains);
+        consumer.Probe.FailTransiently(key, times: 0);
+
+        await using (var replay = ReplayOperator(consumer, secondTerminal, WolverineTestTopology.CommandEndpoint))
+        {
+            var material = replay.GetRequiredService<WolverineTerminalMessageReader>()
+                .Read(WolverineTestTopology.CommandEndpoint, secondTerminal.BasicProperties, secondTerminal.Body);
+            await ReplayAsync(replay, ReplayRequest(material));
+        }
+        await WaitForEffectAsync(consumer, key);
+        Assert.Equal(5, consumer.Probe.AttemptsFor(key));
+        Assert.Equal(1, await consumer.EffectCountAsync(key));
+    }
+
+    [Fact]
+    public async Task Denied_operator_approval_cannot_issue_or_dispatch_a_replay()
+    {
+        var (producer, consumer) = await StartProducerAndConsumerAsync();
+        var tenantId = Guid.NewGuid();
+        var command = WolverineProviderUnitTests.NewCommand(tenantId);
+        var key = command.RequestId.ToString("D");
+        consumer.Probe.FailTransiently(key, times: 3);
+        await producer.InUnitOfWorkAsync(
+            services => services.GetRequiredService<ITenantWrightMessageSender>().SendCommandAsync(command), tenantId);
+        var terminal = await TakeDeadLetterAsync(WolverineTestTopology.CommandEndpoint);
+        await using var replay = ReplayOperator(consumer, terminal, WolverineTestTopology.CommandEndpoint);
+        var material = replay.GetRequiredService<WolverineTerminalMessageReader>()
+            .Read(WolverineTestTopology.CommandEndpoint, terminal.BasicProperties, terminal.Body);
+        var request = ReplayRequest(material) with { AuthorizationId = "unapproved" };
+        await Assert.ThrowsAsync<MessagingSecurityException>(() => ReplayAsync(replay, request));
+        Assert.Empty(replay.GetRequiredService<ReplayAudit>().Requests);
+        await using var context = consumer.ReadContext();
+        Assert.False(await context.Set<TenantWrightReplayState>().AnyAsync(state => state.ReplayId == request.ReplayId));
+        Assert.Equal(0, await consumer.EffectCountAsync(key));
+    }
+
+    [Fact]
+    public async Task Terminal_publish_failure_keeps_the_original_recoverable_until_the_exchange_returns()
+    {
+        var (producer, consumer) = await StartProducerAndConsumerAsync();
+        var tenantId = Guid.NewGuid();
+        var command = WolverineProviderUnitTests.NewCommand(tenantId);
+        var key = command.RequestId.ToString("D");
+        var exchange = TenantWrightWolverineTopology.DeadLetterQueueName(WolverineTestTopology.CommandEndpoint);
+        consumer.Probe.FailTransiently(key, times: 1000);
+        await using var admin = _admin.Connect();
+        await admin.DeleteExchangeAsync(exchange);
+        await producer.InUnitOfWorkAsync(
+            services => services.GetRequiredService<ITenantWrightMessageSender>().SendCommandAsync(command), tenantId);
+        var deadline = DateTime.UtcNow + DeliveryTimeout;
+        while (!consumer.Logs.Entries.Any(entry => entry.Message.StartsWith("Terminal custody was not settled", StringComparison.Ordinal)) &&
+               DateTime.UtcNow < deadline)
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+        Assert.Contains(consumer.Logs.Entries, entry => entry.Message.StartsWith("Terminal custody was not settled", StringComparison.Ordinal));
+        Assert.Equal(HealthStatus.Unhealthy, (await consumer.ReadinessAsync()).Status);
+        Assert.Equal(0, await consumer.EffectCountAsync(key));
+
+        await admin.DeclareFanoutExchangeAsync(exchange);
+        await admin.BindAsync(exchange, exchange);
+        var terminal = await TakeDeadLetterAsync(WolverineTestTopology.CommandEndpoint);
+        var reader = consumer.Services.GetRequiredService<WolverineTerminalMessageReader>();
+        Assert.True(reader.Read(WolverineTestTopology.CommandEndpoint, terminal.BasicProperties, terminal.Body).Summary.ProvenanceVerified);
+        Assert.Equal(0, await consumer.EffectCountAsync(key));
+        var recovered = DateTime.UtcNow + DeliveryTimeout;
+        while (consumer.Services.GetRequiredService<WolverineTerminalPublisher>().HasBlockedPublications && DateTime.UtcNow < recovered)
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+        Assert.Equal(HealthStatus.Healthy, (await consumer.ReadinessAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Shutdown_during_terminal_publication_leaves_the_original_for_a_replacement_consumer()
+    {
+        var (producer, consumer) = await StartProducerAndConsumerAsync();
+        string connectionString;
+        using (var context = consumer.ReadContext())
+            connectionString = context.Database.GetConnectionString()!;
+        var tenantId = Guid.NewGuid();
+        var command = WolverineProviderUnitTests.NewCommand(tenantId);
+        var key = command.RequestId.ToString("D");
+        consumer.Probe.FailTransiently(key, times: 1000);
+        await using var admin = _admin.Connect();
+        await admin.DeleteExchangeAsync(TenantWrightWolverineTopology.DeadLetterQueueName(WolverineTestTopology.CommandEndpoint));
+        await producer.InUnitOfWorkAsync(
+            services => services.GetRequiredService<ITenantWrightMessageSender>().SendCommandAsync(command), tenantId);
+        var deadline = DateTime.UtcNow + DeliveryTimeout;
+        while (!consumer.Services.GetRequiredService<WolverineTerminalPublisher>().HasBlockedPublications && DateTime.UtcNow < deadline)
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+        Assert.True(consumer.Services.GetRequiredService<WolverineTerminalPublisher>().HasBlockedPublications);
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await consumer.Host.StopAsync(timeout.Token);
+        var replacement = await StartHostAsync(WolverineTestHost.StartAsync(connectionString,
+            WolverineTestConfiguration.Messaging(_broker, _keys, WolverineTestTopology.Consumer, WolverineTestTopology.Principals),
+            WolverineTestTopology.Consumer, WolverineTestTopology.ConsumerCatalog()));
+        await WaitForEffectAsync(replacement, key);
+        Assert.Equal(1, await replacement.EffectCountAsync(key));
+        Assert.Equal(tenantId, replacement.Probe.TenantFor(key));
+    }
+
+    [Fact]
     public async Task Endpoint_owner_declares_quorum_queues_dead_letter_queues_and_bindings()
     {
         await StartProducerAndConsumerAsync();
@@ -324,6 +514,8 @@ public sealed class WolverineRabbitMqIntegrationTests(WolverineInfrastructureFix
         Assert.Contains(WolverineTestTopology.CommandEndpoint, await _admin.BindingSourcesAsync(WolverineTestTopology.CommandEndpoint));
         Assert.Contains(WolverineTestTopology.GrantsExchange, await _admin.BindingSourcesAsync(WolverineTestTopology.FirstEventEndpoint));
         Assert.Contains(WolverineTestTopology.GrantsExchange, await _admin.BindingSourcesAsync(WolverineTestTopology.SecondEventEndpoint));
+        Assert.Contains(WolverineTestTopology.FirstEventEndpoint, await _admin.BindingSourcesAsync(WolverineTestTopology.FirstEventEndpoint));
+        Assert.Contains(WolverineTestTopology.SecondEventEndpoint, await _admin.BindingSourcesAsync(WolverineTestTopology.SecondEventEndpoint));
 
         // The producer never declares a consumer's queue, and nothing declares the unbound destination.
         Assert.Null(await _admin.QueueAsync(WolverineTestTopology.UnboundCommandEndpoint));
@@ -378,6 +570,66 @@ public sealed class WolverineRabbitMqIntegrationTests(WolverineInfrastructureFix
 
     private RawBrokerClient Client(string principal) =>
         new(_broker.HostName, _broker.Port, _broker.VirtualHost, principal, _broker.Password);
+
+    private ServiceProvider ReplayOperator(WolverineTestHost consumer, BasicGetResult terminal, string endpoint)
+    {
+        using var context = consumer.ReadContext();
+        var connectionString = context.Database.GetConnectionString()!;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<Microsoft.Extensions.Hosting.IHostEnvironment>(new TestHostEnvironment("Development"));
+        services.AddSingleton<Shared.MultiTenancy.ICurrentTenant, TestAmbientTenant>();
+        var configuration = WolverineTestConfiguration.Build(WolverineTestConfiguration.Messaging(
+            _broker, _keys, WolverineTestTopology.Replay, WolverineTestTopology.Principals));
+        var catalog = WolverineTestTopology.ProducerCatalog();
+        services.AddTenantWrightMessagingCore(configuration, catalog);
+        new WolverineMessagingProvider().Register(services, configuration, catalog);
+        services.AddScoped(_ => new WolverineTestDbContext(
+            new DbContextOptionsBuilder<WolverineTestDbContext>().UseNpgsql(connectionString).Options));
+        services.AddTenantWrightProtectedReplayIdempotencyStore<WolverineTestDbContext>();
+        services.AddSingleton<IProtectedTerminalStore>(provider => new ReplaySnapshotStore(
+            provider.GetRequiredService<WolverineTerminalMessageReader>().Read(endpoint, terminal.BasicProperties, terminal.Body)));
+        services.AddSingleton<IProtectedReplayAuthorization, ReplayAuthorization>();
+        services.AddSingleton<ReplayAudit>();
+        services.AddSingleton<IProtectedReplayAudit>(provider => provider.GetRequiredService<ReplayAudit>());
+        return services.BuildServiceProvider();
+    }
+
+    private static ProtectedReplayRequest ReplayRequest(ProtectedReplayMaterial material) => new(
+        material.Summary.TerminalId, material.Summary.Endpoint, "Test operator recovery", "approved-operator",
+        Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"));
+
+    private static async Task ReplayAsync(ServiceProvider provider, ProtectedReplayRequest request)
+    {
+        await using var scope = provider.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<ProtectedReplayService>().ReplayAsync(request);
+    }
+
+    private sealed class ReplaySnapshotStore(ProtectedReplayMaterial material) : IProtectedTerminalStore
+    {
+        public Task<ProtectedReplayMaterial?> FindAsync(string terminalId, CancellationToken cancellationToken) =>
+            Task.FromResult(terminalId == material.Summary.TerminalId ? material : null);
+    }
+
+    private sealed class ReplayAuthorization : IProtectedReplayAuthorization
+    {
+        public Task AuthorizeAsync(ProtectedReplayRequest request, ProtectedTerminalSummary terminal, CancellationToken cancellationToken)
+        {
+            if (request.AuthorizationId != "approved-operator")
+                throw new MessagingSecurityException(MessagingSecurityException.ReplayRejected);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ReplayAudit : IProtectedReplayAudit
+    {
+        public List<ProtectedReplayRequest> Requests { get; } = [];
+        public Task RecordAsync(ProtectedReplayRequest request, ProtectedTerminalSummary terminal, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.CompletedTask;
+        }
+    }
 
     private ServiceProvider OutsiderCore()
     {

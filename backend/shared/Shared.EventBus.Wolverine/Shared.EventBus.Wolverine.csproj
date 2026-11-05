@@ -6,7 +6,8 @@
   </PropertyGroup>
   <!--
     The Wolverine / RabbitMQ transport provider: the only project allowed to reference a Wolverine package. Wolverine
-    owns only RabbitMQ consumption (listeners, inline acknowledgement, in-process retry and native dead-lettering); the
+    owns RabbitMQ consumption (listeners, inline acknowledgement, in-process retry and native quarantine), signed
+    terminal publication and replay transport; the
     provider-neutral Shared.EventBus core and the durable outbox/inbox own trust, idempotency and durability, and
     outbound dispatch goes through RabbitMQ.Client directly with mandatory routing and publisher confirms. Selected by
     Shared.EventBus.Hosting when Messaging:Provider=Wolverine.

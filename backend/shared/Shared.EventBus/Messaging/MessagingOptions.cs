@@ -14,7 +14,7 @@ public enum TenantWrightMessagingProvider
 
     /// <summary>
     /// Wolverine 6 over RabbitMQ (MIT, no licence). Consumption only: immediate in-process retries and native
-    /// dead-lettering, but no broker delayed redelivery, signed terminal custody or protected replay.
+    /// dead-letter quarantine, signed terminal custody and protected replay; no broker delayed redelivery.
     /// </summary>
     Wolverine = 2
 }

@@ -26,14 +26,16 @@ public sealed class WolverineProviderUnitTests : IDisposable
     public void Dispose() => _keys.Dispose();
 
     [Fact]
-    public async Task Provider_registers_its_transport_runtime_and_readiness_check_and_no_custody_verifier()
+    public async Task Provider_registers_replay_custody_but_no_delayed_redelivery_verifier()
     {
         await using var provider = BuildProvider(WolverineTestTopology.ConsumerCatalog(), WolverineTestTopology.Consumer);
 
         Assert.IsType<WolverineMessagingTransport>(provider.GetRequiredService<ITenantWrightMessagingTransport>());
         Assert.Contains(provider.GetServices<IHostedService>(), service => service is IWolverineRuntime);
         Assert.Empty(provider.GetServices<ITenantWrightRedeliveryCustodyVerifier>());
-        Assert.Empty(provider.GetServices<ITenantWrightReplayCustodyVerifier>());
+        Assert.IsType<WolverineReplayCustodyVerifier>(Assert.Single(provider.GetServices<ITenantWrightReplayCustodyVerifier>()));
+        Assert.IsType<WolverineProtectedReplayTransport>(provider.GetRequiredService<IProtectedReplayTransport>());
+        Assert.IsType<WolverineTerminalMessageReader>(provider.GetRequiredService<WolverineTerminalMessageReader>());
         Assert.IsType<WolverineDiscoveryLogger>(provider.GetRequiredService<ILogger<HandlerDiscovery>>());
 
         var health = provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations;
@@ -160,7 +162,7 @@ public sealed class WolverineProviderUnitTests : IDisposable
         Assert.Equal(messageId, delivery.MessageId);
         Assert.Equal(messageId, envelope.Id);
         Assert.Equal(WolverineTestTopology.Producer, delivery.BrokerActor);
-        Assert.Same(NoTenantWrightTransportEvidence.Instance, delivery.TransportEvidence);
+        Assert.False(Assert.IsType<WolverineRabbitMqTransportEvidence>(delivery.TransportEvidence).HasRedeliveryHistory);
         Assert.Equal(typeof(NotificationSendRequestedTenantEto).FullName, envelope.MessageType);
         Assert.Equal("application/json", envelope.ContentType);
         Assert.IsType<TenantWrightCanonicalMessageSerializer>(envelope.Serializer);

@@ -173,7 +173,7 @@ Every provider must meet these rules:
 
 | Item | Status |
 |---|---|
-| Signed dead-letter replay for Wolverine (MassTransit already has protected replay) | Planned |
+| Signed dead-letter replay for Wolverine (adapter supports signed custody and replay; operator supplies authorization, audit and terminal lookup) | Available |
 | More transports behind `Messaging:Provider`: Azure Service Bus, Amazon SQS/SNS, Kafka | Exploring, Help wanted |
 | Audit log archive for dedicated AuditLogs databases (archive runs on the shared database today; legal hold is available) | Planned |
 | Schema-per-tenant option, next to shared and dedicated databases | Exploring |

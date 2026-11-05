@@ -8,13 +8,15 @@ namespace Shared.EventBus.Wolverine;
 
 /// <summary>
 /// Readiness of the Wolverine provider: the Wolverine RabbitMQ connection is up and not blocked, every catalog receive
-/// endpoint has a listener accepting deliveries, and the confirmed publisher connection is open. Anything else is
+/// endpoint has a listener accepting deliveries, the confirmed publisher connection is open, and no terminal
+/// publication is blocked. Anything else is
 /// unhealthy, so a host that cannot consume or dispatch is taken out of rotation. Readiness only, never liveness.
 /// </summary>
 internal sealed class WolverineMessagingHealthCheck(
     IWolverineRuntime runtime,
     TenantWrightMessageCatalog catalog,
-    RabbitMqConfirmedPublisher publisher) : IHealthCheck
+    RabbitMqConfirmedPublisher publisher,
+    WolverineTerminalPublisher terminalPublisher) : IHealthCheck
 {
     public const string Name = "tenantwright-wolverine";
 
@@ -22,6 +24,9 @@ internal sealed class WolverineMessagingHealthCheck(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        if (terminalPublisher.HasBlockedPublications)
+            return HealthCheckResult.Unhealthy("Signed terminal publication is blocked; original deliveries remain unacknowledged.");
+
         var transport = runtime.Options.Transports.OfType<RabbitMqTransport>().SingleOrDefault();
         if (transport is null)
             return HealthCheckResult.Unhealthy("The Wolverine RabbitMQ transport is not configured.");

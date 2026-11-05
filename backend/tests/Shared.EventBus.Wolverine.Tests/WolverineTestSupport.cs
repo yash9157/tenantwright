@@ -21,6 +21,7 @@ internal static class WolverineTestTopology
     public const string Producer = "tenantwright-wolverine-alpha";
     public const string Consumer = "tenantwright-wolverine-beta";
     public const string Outsider = "tenantwright-wolverine-gamma";
+    public const string Replay = "tenantwright-messaging-replay";
 
     public const string CommandEndpoint = "tenantwright-wolverine-beta-commands-v1";
     public const string UnboundCommandEndpoint = "tenantwright-wolverine-beta-unbound-v1";
@@ -29,7 +30,7 @@ internal static class WolverineTestTopology
 
     public static readonly string GrantsExchange = TenantWrightMessageContracts.GetIdentity(typeof(PermissionGrantsChangedTenantEto));
 
-    public static IReadOnlyList<string> Principals { get; } = [Producer, Consumer, Outsider];
+    public static IReadOnlyList<string> Principals { get; } = [Producer, Consumer, Outsider, Replay];
 
     /// <param name="receiveEndpoints">The endpoints the composed host consumes.</param>
     /// <param name="outsiderMayPublishGrants">
