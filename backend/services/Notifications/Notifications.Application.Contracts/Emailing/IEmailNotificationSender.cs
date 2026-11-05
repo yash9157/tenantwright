@@ -1,8 +1,10 @@
+using Notifications.Application.Contracts.Channels;
+
 namespace Notifications.Application.Contracts.Emailing;
 
 public interface IEmailNotificationSender
 {
-    Task<string?> SendAsync(
+    Task<NotificationProviderSendResult> SendAsync(
         string to,
         string subject,
         string htmlBody,

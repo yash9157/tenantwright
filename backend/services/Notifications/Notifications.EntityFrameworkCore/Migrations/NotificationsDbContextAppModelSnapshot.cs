@@ -65,6 +65,49 @@ namespace Notifications.EntityFrameworkCore.Migrations
                     b.HasAnnotation("Shared:GlobalFiltersConfigured", true);
                 });
 
+            modelBuilder.Entity("Notifications.Domain.Archival.ArchivedNotificationDispatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ArchivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PayloadSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SourceDispatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SourceEventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId", "SourceDispatchId", "SourceEventId")
+                        .IsUnique();
+
+                    b.ToTable("ArchivedNotificationDispatches", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ArchivedNotificationDispatches_Scope", "\"ScopeId\" = COALESCE(\"TenantId\", '00000000-0000-0000-0000-000000000000') AND (\"TenantId\" IS NULL OR \"TenantId\" <> '00000000-0000-0000-0000-000000000000')");
+                        });
+
+                    b.HasAnnotation("Shared:GlobalFiltersConfigured", true);
+                });
+
             modelBuilder.Entity("Notifications.Domain.Devices.NotificationDeviceToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -225,8 +268,13 @@ namespace Notifications.EntityFrameworkCore.Migrations
 
                     b.Property<string>("RecipientValue")
                         .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)");
+
+                    b.Property<string>("RecipientValueHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("ScopeKey")
                         .IsRequired()
@@ -244,7 +292,7 @@ namespace Notifications.EntityFrameworkCore.Migrations
 
                     b.HasIndex("Status", "PeriodEndUtc", "Id");
 
-                    b.HasIndex("ScopeKey", "Channel", "RecipientType", "RecipientValue", "Frequency", "PeriodStartUtc")
+                    b.HasIndex("ScopeKey", "Channel", "RecipientType", "RecipientValueHash", "Frequency", "PeriodStartUtc")
                         .IsUnique()
                         .HasDatabaseName("IX_NotificationDigestBuckets_Scope_Channel_Recipient_Period");
 
@@ -293,6 +341,267 @@ namespace Notifications.EntityFrameworkCore.Migrations
                     b.HasAnnotation("Shared:GlobalFiltersConfigured", true);
                 });
 
+            modelBuilder.Entity("Notifications.Domain.Dispatches.NotificationDispatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActivationTimeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CancelRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("NextEvaluationAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceService")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NextEvaluationAtUtc", "Id");
+
+                    b.HasIndex("ScopeId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("NotificationDispatches", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotificationDispatches_Lifetime", "\"ExpiresAtUtc\" > \"ActivationTimeUtc\"");
+
+                            t.HasCheckConstraint("CK_NotificationDispatches_Scope", "\"ScopeId\" = COALESCE(\"TenantId\", '00000000-0000-0000-0000-000000000000') AND (\"TenantId\" IS NULL OR \"TenantId\" <> '00000000-0000-0000-0000-000000000000')");
+                        });
+
+                    b.HasAnnotation("Shared:GlobalFiltersConfigured", true);
+                });
+
+            modelBuilder.Entity("Notifications.Domain.Dispatches.NotificationDispatchEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("DispatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid?>("RecipientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("StepId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId", "DispatchId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("NotificationDispatchEvents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotificationDispatchEvents_Scope", "\"ScopeId\" = COALESCE(\"TenantId\", '00000000-0000-0000-0000-000000000000') AND (\"TenantId\" IS NULL OR \"TenantId\" <> '00000000-0000-0000-0000-000000000000')");
+                        });
+
+                    b.HasAnnotation("Shared:GlobalFiltersConfigured", true);
+                });
+
+            modelBuilder.Entity("Notifications.Domain.Dispatches.NotificationDispatchRecipient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DispatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PreferenceUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RecipientKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId", "DispatchId", "RecipientKey")
+                        .IsUnique();
+
+                    b.ToTable("NotificationDispatchRecipients", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotificationDispatchRecipients_Scope", "\"ScopeId\" = COALESCE(\"TenantId\", '00000000-0000-0000-0000-000000000000') AND (\"TenantId\" IS NULL OR \"TenantId\" <> '00000000-0000-0000-0000-000000000000')");
+                        });
+
+                    b.HasAnnotation("Shared:GlobalFiltersConfigured", true);
+                });
+
+            modelBuilder.Entity("Notifications.Domain.Dispatches.NotificationDispatchStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ClaimExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContentJson")
+                        .IsRequired()
+                        .HasMaxLength(262144)
+                        .HasColumnType("character varying(262144)");
+
+                    b.Property<Guid>("DispatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsPreparationDeferred")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("NextEvaluationAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OutcomeReason")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("RecipientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SchedulingClaimId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId", "DispatchId", "RecipientId");
+
+                    b.HasIndex("ScopeId", "RecipientId", "Channel")
+                        .IsUnique();
+
+                    b.HasIndex("ScopeId", "RecipientId", "Ordinal")
+                        .IsUnique();
+
+                    b.ToTable("NotificationDispatchSteps", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotificationDispatchSteps_Ordinal", "\"Ordinal\" >= 0 AND \"Ordinal\" < 5");
+
+                            t.HasCheckConstraint("CK_NotificationDispatchSteps_Scope", "\"ScopeId\" = COALESCE(\"TenantId\", '00000000-0000-0000-0000-000000000000') AND (\"TenantId\" IS NULL OR \"TenantId\" <> '00000000-0000-0000-0000-000000000000')");
+                        });
+
+                    b.HasAnnotation("Shared:GlobalFiltersConfigured", true);
+                });
+
             modelBuilder.Entity("Notifications.Domain.Notifications.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -329,6 +638,12 @@ namespace Notifications.EntityFrameworkCore.Migrations
                     b.Property<DateTime?>("DeletionTime")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("DeletionTime");
+
+                    b.Property<Guid?>("DispatchScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DispatchStepId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ExtraProperties")
                         .IsRequired()
@@ -385,8 +700,15 @@ namespace Notifications.EntityFrameworkCore.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DispatchStepId")
+                        .IsUnique()
+                        .HasFilter("\"DispatchStepId\" IS NOT NULL");
+
                     b.HasIndex("CreationTime", "Id")
                         .HasDatabaseName("IX_Notifications_CreationTime_Id");
+
+                    b.HasIndex("DispatchScopeId", "DispatchStepId")
+                        .IsUnique();
 
                     b.HasIndex("TenantId", "Category");
 
@@ -398,7 +720,10 @@ namespace Notifications.EntityFrameworkCore.Migrations
 
                     b.HasIndex("TenantId", "SourceService", "CreationTime");
 
-                    b.ToTable("Notifications", (string)null);
+                    b.ToTable("Notifications", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Notifications_DispatchScope", "(\"DispatchStepId\" IS NULL AND \"DispatchScopeId\" IS NULL) OR (\"DispatchStepId\" IS NOT NULL AND \"DispatchScopeId\" IS NOT NULL AND \"DispatchScopeId\" = COALESCE(\"TenantId\", '00000000-0000-0000-0000-000000000000'))");
+                        });
 
                     b.HasAnnotation("Shared:GlobalFiltersConfigured", true);
                 });
@@ -775,8 +1100,13 @@ namespace Notifications.EntityFrameworkCore.Migrations
 
                     b.Property<string>("RecipientValue")
                         .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)");
+
+                    b.Property<string>("RecipientValueHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uuid")
@@ -786,7 +1116,7 @@ namespace Notifications.EntityFrameworkCore.Migrations
 
                     b.HasIndex("NotificationId");
 
-                    b.HasIndex("NotificationId", "RecipientType", "RecipientValue")
+                    b.HasIndex("NotificationId", "RecipientType", "RecipientValueHash")
                         .IsUnique();
 
                     b.ToTable("NotificationRecipients", (string)null);
@@ -1643,35 +1973,6 @@ namespace Notifications.EntityFrameworkCore.Migrations
                     b.HasAnnotation("Shared:GlobalFiltersConfigured", true);
                 });
 
-            modelBuilder.Entity("Shared.EntityFrameworkCore.Messaging.TenantWrightReplayState", b =>
-                {
-                    b.Property<string>("ReplayId")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<string>("AuditId")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<DateTimeOffset?>("ConsumedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Destination")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<DateTimeOffset>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("ReplayId");
-
-                    b.HasIndex("ExpiresAt");
-
-                    b.ToTable("MessagingReplayState", "public");
-                });
-
             modelBuilder.Entity("Shared.EntityFrameworkCore.Messaging.MessagingInboxRecord", b =>
                 {
                     b.Property<Guid>("MessageId")
@@ -1763,6 +2064,35 @@ namespace Notifications.EntityFrameworkCore.Migrations
                     b.ToTable("MessagingOutboxMessages", "public");
                 });
 
+            modelBuilder.Entity("Shared.EntityFrameworkCore.Messaging.TenantWrightReplayState", b =>
+                {
+                    b.Property<string>("ReplayId")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("AuditId")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Destination")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ReplayId");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.ToTable("MessagingReplayState", "public");
+                });
+
             modelBuilder.Entity("Notifications.Domain.Digests.NotificationDigestItem", b =>
                 {
                     b.HasOne("Notifications.Domain.Digests.NotificationDigestBucket", null)
@@ -1770,6 +2100,45 @@ namespace Notifications.EntityFrameworkCore.Migrations
                         .HasForeignKey("BucketId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Notifications.Domain.Dispatches.NotificationDispatchEvent", b =>
+                {
+                    b.HasOne("Notifications.Domain.Dispatches.NotificationDispatch", null)
+                        .WithMany("Events")
+                        .HasForeignKey("ScopeId", "DispatchId")
+                        .HasPrincipalKey("ScopeId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Notifications.Domain.Dispatches.NotificationDispatchRecipient", b =>
+                {
+                    b.HasOne("Notifications.Domain.Dispatches.NotificationDispatch", null)
+                        .WithMany("Recipients")
+                        .HasForeignKey("ScopeId", "DispatchId")
+                        .HasPrincipalKey("ScopeId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Notifications.Domain.Dispatches.NotificationDispatchStep", b =>
+                {
+                    b.HasOne("Notifications.Domain.Dispatches.NotificationDispatchRecipient", null)
+                        .WithMany("Steps")
+                        .HasForeignKey("ScopeId", "DispatchId", "RecipientId")
+                        .HasPrincipalKey("ScopeId", "DispatchId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Notifications.Domain.Notifications.Notification", b =>
+                {
+                    b.HasOne("Notifications.Domain.Dispatches.NotificationDispatchStep", null)
+                        .WithOne()
+                        .HasForeignKey("Notifications.Domain.Notifications.Notification", "DispatchScopeId", "DispatchStepId")
+                        .HasPrincipalKey("Notifications.Domain.Dispatches.NotificationDispatchStep", "ScopeId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Notifications.Domain.Notifications.NotificationDelivery", b =>
@@ -1849,6 +2218,18 @@ namespace Notifications.EntityFrameworkCore.Migrations
                         .HasForeignKey("TemplateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Notifications.Domain.Dispatches.NotificationDispatch", b =>
+                {
+                    b.Navigation("Events");
+
+                    b.Navigation("Recipients");
+                });
+
+            modelBuilder.Entity("Notifications.Domain.Dispatches.NotificationDispatchRecipient", b =>
+                {
+                    b.Navigation("Steps");
                 });
 
             modelBuilder.Entity("Notifications.Domain.Notifications.Notification", b =>

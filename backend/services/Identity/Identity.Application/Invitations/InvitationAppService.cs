@@ -819,26 +819,32 @@ public sealed class InvitationAppService :
         var command = new NotificationSendRequestedHostEto
         {
             RequestId = Guid.CreateVersion7(),
-            Channel = NotificationSendChannel.Email,
-            Subject = _options.Value.Subject,
-            TemplateName = _options.Value.TemplateName,
-            TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
+            OccurredAtUtc = DateTime.UtcNow,
+            SourceService = "identity-service",
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.Email,
+                        Subject = _options.Value.Subject,
+                        TemplateName = _options.Value.TemplateName,
+                        TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 ["tenantName"] = invitation.TenantName,
                 ["email"] = invitation.Email,
                 ["roleName"] = invitation.RoleName,
                 ["link"] = link
+            }
+                    }]
             },
-            Recipients =
-            [
+            Recipients = IdentityNotificationContractPublisher.CreateSingleChannelRecipients(NotificationSendChannel.Email, [
                 new NotificationRecipientEto
                 {
                     RecipientType = NotificationSendRecipientType.EmailAddress,
                     RecipientValue = invitation.Email
                 }
-            ],
-            OccurredAtUtc = DateTime.UtcNow,
-            SourceService = "identity-service"
+            ], null),
         };
 
         Guid? tenantId = useHostDelivery || invitation.TenantId == Guid.Empty

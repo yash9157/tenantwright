@@ -244,25 +244,31 @@ public partial class AccountAppService : IAccountAppService, ITransientDependenc
         {
             RequestId = Guid.CreateVersion7(),
             TenantId = tenantId,
-            Channel = NotificationSendChannel.Email,
-            Subject = "Activate your workspace",
-            TemplateName = templateName,
-            TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
+            OccurredAtUtc = DateTime.UtcNow,
+            SourceService = "identity-service",
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.Email,
+                        Subject = "Activate your workspace",
+                        TemplateName = templateName,
+                        TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 ["link"] = link,
                 ["userId"] = user.Id.ToString("D"),
                 ["userName"] = user.UserName
+            }
+                    }]
             },
-            Recipients =
-            [
+            Recipients = IdentityNotificationContractPublisher.CreateSingleChannelRecipients(NotificationSendChannel.Email, [
                 new NotificationRecipientEto
                 {
                     RecipientType = NotificationSendRecipientType.EmailAddress,
                     RecipientValue = user.Email ?? string.Empty
                 }
-            ],
-            OccurredAtUtc = DateTime.UtcNow,
-            SourceService = "identity-service"
+            ], null),
         };
     }
 
@@ -1217,10 +1223,17 @@ public partial class AccountAppService : IAccountAppService, ITransientDependenc
             var request = new NotificationSendRequestedHostEto
             {
                 RequestId = Guid.CreateVersion7(),
-                Channel = NotificationSendChannel.Email,
-                Subject = alertOptions.Subject,
-                TemplateName = alertOptions.TemplateName,
-                TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
+                OccurredAtUtc = DateTime.UtcNow,
+                SourceService = "identity-service",
+                DeliveryPlan = new NotificationDeliveryPlan
+                {
+                    Mode = NotificationDeliveryMode.Parallel,
+                    Steps = [new NotificationChannelPlan
+                        {
+                            Channel = NotificationSendChannel.Email,
+                            Subject = alertOptions.Subject,
+                            TemplateName = alertOptions.TemplateName,
+                            TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     ["userId"] = user.Id.ToString("D"),
                     ["userName"] = user.UserName,
@@ -1230,14 +1243,14 @@ public partial class AccountAppService : IAccountAppService, ITransientDependenc
                     ["riskReasons"] = string.Join(",", riskEvaluation.Reasons),
                     ["clientIpAddress"] = clientIpAddress,
                     ["clientId"] = clientId
+                }
+                        }]
                 },
-                Recipients = operatorEmails.Select(email => new NotificationRecipientEto
+                Recipients = IdentityNotificationContractPublisher.CreateSingleChannelRecipients(NotificationSendChannel.Email, operatorEmails.Select(email => new NotificationRecipientEto
                 {
                     RecipientType = NotificationSendRecipientType.EmailAddress,
                     RecipientValue = email
-                }).ToList(),
-                OccurredAtUtc = DateTime.UtcNow,
-                SourceService = "identity-service"
+                }).ToList(), null),
             };
 
             var eventBus = _eventBus ?? throw new InvalidOperationException("Distributed event bus is required to publish risk notifications.");

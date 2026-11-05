@@ -2,6 +2,7 @@ namespace Notifications.Application.Delivery;
 
 public sealed class NotificationsDeliveryOptions
 {
+    public int ProviderTimeoutSeconds { get; set; } = 30;
     public bool Enabled { get; set; } = true;
     public int PollIntervalMs { get; set; } = 1000;
     public int BatchSize { get; set; } = 100;

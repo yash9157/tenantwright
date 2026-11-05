@@ -159,23 +159,28 @@ public sealed class IdentityUserSecurityAlertPublisher : ITransientDependency
         var command = new NotificationSendRequestedHostEto
         {
             RequestId = Guid.CreateVersion7(),
-            Channel = NotificationSendChannel.Email,
-            Subject = subject,
-            TemplateName = templateName,
-            TemplateModel = templateModel,
-            Recipients =
-            [
+            OccurredAtUtc = occurredAtUtc,
+            SourceService = "identity-service",
+            RespectUserPreferences = true,
+            PreferenceKey = alertKey,
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.Email,
+                        Subject = subject,
+                        TemplateName = templateName,
+                        TemplateModel = templateModel
+                    }]
+            },
+            Recipients = IdentityNotificationContractPublisher.CreateSingleChannelRecipients(NotificationSendChannel.Email, [
                 new NotificationRecipientEto
                 {
                     RecipientType = NotificationSendRecipientType.EmailAddress,
                     RecipientValue = email
                 }
-            ],
-            OccurredAtUtc = occurredAtUtc,
-            SourceService = "identity-service",
-            RespectUserPreferences = true,
-            PreferenceUserId = userId,
-            PreferenceKey = alertKey
+            ], userId),
         };
 
         try

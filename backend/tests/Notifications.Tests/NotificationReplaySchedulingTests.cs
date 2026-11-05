@@ -52,7 +52,7 @@ public class NotificationReplaySchedulingTests
         Assert.Equal(operationId, scheduler.RequestId);
 
         Assert.Equal(scheduledForUtc, scheduler.NotBeforeUtc);
-        Assert.Equal(typeof(NotificationSendRequestedTenantEto), scheduler.LastContractType);
+        Assert.Equal(typeof(NotificationChannelRequestTenant), scheduler.LastContractType);
         Assert.Equal(scheduledForUtc, result.ScheduledForUtc);
         Assert.Equal(notificationId, result.OriginalNotificationId);
     }
@@ -96,7 +96,7 @@ public class NotificationReplaySchedulingTests
         Assert.Equal(operationId, scheduler.RequestId);
 
         Assert.Equal(scheduledForUtc, scheduler.NotBeforeUtc);
-        Assert.Equal(typeof(NotificationSendRequestedHostEto), scheduler.LastContractType);
+        Assert.Equal(typeof(NotificationChannelRequestHost), scheduler.LastContractType);
         Assert.Equal(scheduledForUtc, result.ScheduledForUtc);
     }
 
@@ -259,34 +259,34 @@ public class NotificationReplaySchedulingTests
         public Guid? RequestId { get; private set; }
 
         public Task<NotificationScheduleResult> ScheduleAsync(
-            NotificationSendRequestedTenantEto input,
+            NotificationChannelRequestTenant input,
             CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("A scheduled replay must use ScheduleAtAsync.");
         }
 
         public Task<NotificationScheduleResult> ScheduleAsync(
-            NotificationSendRequestedHostEto input,
+            NotificationChannelRequestHost input,
             CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("A scheduled replay must use ScheduleAtAsync.");
         }
 
         public Task<NotificationScheduleResult> ScheduleAtAsync(
-            NotificationSendRequestedTenantEto input,
+            NotificationChannelRequestTenant input,
             DateTime notBeforeUtc,
             CancellationToken cancellationToken = default)
         {
-            LastContractType = typeof(NotificationSendRequestedTenantEto);
+            LastContractType = typeof(NotificationChannelRequestTenant);
             return CaptureDelayedAsync(input.RequestId, input.Recipients.Count, notBeforeUtc);
         }
 
         public Task<NotificationScheduleResult> ScheduleAtAsync(
-            NotificationSendRequestedHostEto input,
+            NotificationChannelRequestHost input,
             DateTime notBeforeUtc,
             CancellationToken cancellationToken = default)
         {
-            LastContractType = typeof(NotificationSendRequestedHostEto);
+            LastContractType = typeof(NotificationChannelRequestHost);
             return CaptureDelayedAsync(input.RequestId, input.Recipients.Count, notBeforeUtc);
         }
 

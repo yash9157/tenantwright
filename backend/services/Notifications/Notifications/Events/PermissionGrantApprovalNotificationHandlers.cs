@@ -57,25 +57,42 @@ public sealed class PermissionGrantApprovalRequestedEventHandler
         {
             RequestId = eventData.RequestId,
             TenantId = eventData.TenantId.Value,
-            Channel = NotificationSendChannel.App,
-            Subject = "Sensitive access request needs review",
-            TemplateName = NotificationsTemplateNames.Permissions.GrantApprovalRequested,
-            TemplateModel = new(StringComparer.Ordinal)
-            {
-                ["requester_display_name"] = eventData.RequesterDisplayName,
-                ["permission_name"] = eventData.PermissionName,
-                ["provider_display_name"] = eventData.ProviderDisplayName,
-                ["reason"] = eventData.Reason,
-                ["ticket_id"] = eventData.TicketId
-            },
-            Recipients = recipients,
             Category = "permissions.approval.requested",
             Priority = NotificationSendPriority.High,
             ActionUrl = "/platform/access/approvals",
             OccurredAtUtc = eventData.OccurredAtUtc,
             SourceService = "Permissions",
             RespectUserPreferences = true,
-            PreferenceKey = "permissions.approvals"
+            PreferenceKey = "permissions.approvals",
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.App,
+                        Subject = "Sensitive access request needs review",
+                        TemplateName = NotificationsTemplateNames.Permissions.GrantApprovalRequested,
+                        TemplateModel = new(StringComparer.Ordinal)
+            {
+                ["requester_display_name"] = eventData.RequesterDisplayName,
+                ["permission_name"] = eventData.PermissionName,
+                ["provider_display_name"] = eventData.ProviderDisplayName,
+                ["reason"] = eventData.Reason,
+                ["ticket_id"] = eventData.TicketId
+            }
+                    }]
+            },
+            Recipients = ((IEnumerable<NotificationRecipientEto>)recipients).Select((recipient, index) => new NotificationRecipientPlan
+            {
+                Key = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                PreferenceUserId = null,
+                Destinations = [new NotificationDestination
+                {
+                    Channel = NotificationSendChannel.App,
+                    RecipientType = recipient.RecipientType,
+                    RecipientValue = recipient.RecipientValue
+                }]
+            }).ToList(),
         }, cancellationToken);
     }
 }
@@ -112,33 +129,48 @@ public sealed class PermissionGrantApprovalDecidedEventHandler
         {
             RequestId = eventData.RequestId,
             TenantId = eventData.TenantId.Value,
-            Channel = NotificationSendChannel.App,
-            Subject = $"Sensitive access request {eventData.Decision.ToLowerInvariant()}",
-            TemplateName = NotificationsTemplateNames.Permissions.GrantApprovalDecided,
-            TemplateModel = new(StringComparer.Ordinal)
-            {
-                ["permission_name"] = eventData.PermissionName,
-                ["provider_display_name"] = eventData.ProviderDisplayName,
-                ["decision"] = eventData.Decision.ToLowerInvariant(),
-                ["decision_reason"] = eventData.DecisionReason,
-                ["decider_display_name"] = eventData.DeciderDisplayName
-            },
-            Recipients =
-            [
-                new NotificationRecipientEto
-                {
-                    RecipientType = NotificationSendRecipientType.UserId,
-                    RecipientValue = eventData.RequesterUserId.Value.ToString("D")
-                }
-            ],
             Category = "permissions.approval.decided",
             Priority = NotificationSendPriority.Normal,
             ActionUrl = "/account/access",
             OccurredAtUtc = eventData.OccurredAtUtc,
             SourceService = "Permissions",
             RespectUserPreferences = true,
-            PreferenceUserId = eventData.RequesterUserId,
-            PreferenceKey = "permissions.approvals"
+            PreferenceKey = "permissions.approvals",
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.App,
+                        Subject = $"Sensitive access request {eventData.Decision.ToLowerInvariant()}",
+                        TemplateName = NotificationsTemplateNames.Permissions.GrantApprovalDecided,
+                        TemplateModel = new(StringComparer.Ordinal)
+            {
+                ["permission_name"] = eventData.PermissionName,
+                ["provider_display_name"] = eventData.ProviderDisplayName,
+                ["decision"] = eventData.Decision.ToLowerInvariant(),
+                ["decision_reason"] = eventData.DecisionReason,
+                ["decider_display_name"] = eventData.DeciderDisplayName
+            }
+                    }]
+            },
+            Recipients = ((IEnumerable<NotificationRecipientEto>)[
+                new NotificationRecipientEto
+                {
+                    RecipientType = NotificationSendRecipientType.UserId,
+                    RecipientValue = eventData.RequesterUserId.Value.ToString("D")
+                }
+            ]).Select((recipient, index) => new NotificationRecipientPlan
+            {
+                Key = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                PreferenceUserId = eventData.RequesterUserId,
+                Destinations = [new NotificationDestination
+                {
+                    Channel = NotificationSendChannel.App,
+                    RecipientType = recipient.RecipientType,
+                    RecipientValue = recipient.RecipientValue
+                }]
+            }).ToList(),
         }, cancellationToken);
     }
 }

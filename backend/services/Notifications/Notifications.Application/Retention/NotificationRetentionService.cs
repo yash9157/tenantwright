@@ -55,6 +55,7 @@ public sealed class NotificationRetentionService
         var batchSize = Math.Clamp(options.BatchSize, 1, 1000);
         var hotCutoff = now.AddDays(-Math.Max(365, options.HotRetentionDays));
         var presenceCutoff = now.AddDays(-Math.Max(90, options.PresenceRetentionDays));
+        var completedDispatches = NotificationDispatchRetention.Completed(unitOfWorkDbContext, hotCutoff);
 
         // Runs once per database (fan-out): only rows the visited database owns are purged, so rows a tenant left in the
         // shared database when it moved to a dedicated one stay untouched.
@@ -62,6 +63,17 @@ public sealed class NotificationRetentionService
             .IgnoreQueryFilters()
             .WhereOwnedByCurrentDatabase()
             .Where(x => x.CreationTime <= hotCutoff)
+            .Where(notification => !notification.DispatchStepId.HasValue ||
+                unitOfWorkDbContext.NotificationDispatchSteps.IgnoreQueryFilters().Any(step => step.Id == notification.DispatchStepId &&
+                    step.TenantId == notification.TenantId && completedDispatches.Any(dispatch => dispatch.Id == step.DispatchId && dispatch.ScopeId == step.ScopeId)))
+            .Where(notification => !unitOfWorkDbContext.NotificationDigestItems.IgnoreQueryFilters().Any(item =>
+                item.TenantId == notification.TenantId && item.SourceNotificationId == notification.Id &&
+                unitOfWorkDbContext.NotificationDigestBuckets.IgnoreQueryFilters().Any(bucket => bucket.Id == item.BucketId &&
+                    bucket.TenantId == item.TenantId && (bucket.Status == NotificationDigestBucketStatus.Open ||
+                        bucket.Status == NotificationDigestBucketStatus.Processing || bucket.Status == NotificationDigestBucketStatus.NeedsReview ||
+                        (notification.DispatchStepId.HasValue && bucket.EmittedNotificationId.HasValue &&
+                         unitOfWorkDbContext.Notifications.IgnoreQueryFilters().Any(emitted =>
+                             emitted.Id == bucket.EmittedNotificationId && emitted.TenantId == item.TenantId))))))
             .Where(x => !unitOfWorkDbContext.NotificationDeliveries.IgnoreQueryFilters().Any(delivery =>
                 delivery.NotificationId == x.Id &&
                 (delivery.Status == NotificationStatus.Queued ||
@@ -120,6 +132,8 @@ public sealed class NotificationRetentionService
                     notification.Id,
                     notification.TenantId,
                     notification.RequestId,
+                    notification.DispatchStepId,
+                    notification.DispatchScopeId,
                     notification.Channel,
                     notification.TemplateName,
                     notification.TemplateModelJson,
@@ -209,6 +223,8 @@ public sealed class NotificationRetentionService
                 .IgnoreQueryFilters()
                 .Where(x => notificationIds.Contains(x.Id))
                 .ExecuteDeleteAsync(cancellationToken);
+
+        await NotificationDispatchRetention.ArchiveBatchAsync(unitOfWorkDbContext, hotCutoff, batchSize, now, cancellationToken);
 
         var presenceIds = await unitOfWorkDbContext.NotificationPresenceRecords
             .IgnoreQueryFilters()

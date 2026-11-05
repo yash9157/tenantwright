@@ -127,7 +127,7 @@ public sealed class WolverineRabbitMqIntegrationTests(WolverineInfrastructureFix
         var stamped = producer.Stamp(command, TenantWrightMessageRouteKind.Command, tenantId);
         var tampered = WolverineProviderUnitTests.NewCommand(tenantId);
         tampered.RequestId = command.RequestId;
-        tampered.TemplateName = "tampered-template";
+        tampered.DeliveryPlan.Steps[0].TemplateName = "tampered-template";
         var catalog = producer.Services.GetRequiredService<TenantWrightMessageCatalog>();
 
         // Published by the genuine producer under its own broker identity; only the body differs from what it signed.
@@ -217,8 +217,27 @@ public sealed class WolverineRabbitMqIntegrationTests(WolverineInfrastructureFix
         var command = new NotificationSendRequestedHostEto
         {
             RequestId = Guid.NewGuid(),
-            TemplateName = "wolverine-test",
-            SourceService = WolverineTestTopology.Producer
+            SourceService = WolverineTestTopology.Producer,
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.Email,
+                        TemplateName = "wolverine-test"
+                    }]
+            },
+            Recipients = ((IEnumerable<NotificationRecipientEto>)[]).Select((recipient, index) => new NotificationRecipientPlan
+            {
+                Key = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                PreferenceUserId = null,
+                Destinations = [new NotificationDestination
+                {
+                    Channel = NotificationSendChannel.Email,
+                    RecipientType = recipient.RecipientType,
+                    RecipientValue = recipient.RecipientValue
+                }]
+            }).ToList(),
         };
 
         await producer.InUnitOfWorkAsync(

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Notifications.Domain.Archival;
 using Notifications.Domain.Digests;
+using Notifications.Domain.Dispatches;
 using Notifications.Domain.Devices;
 using Notifications.Domain.Notifications;
 using Notifications.Domain.Policy;
@@ -18,7 +19,12 @@ public class NotificationsDbContextApp : SharedDbContext<NotificationsDbContextA
 {
 
     public DbSet<Notification> Notifications { get; set; } = default!;
+    public DbSet<NotificationDispatch> NotificationDispatches => Set<NotificationDispatch>();
+    public DbSet<NotificationDispatchRecipient> NotificationDispatchRecipients => Set<NotificationDispatchRecipient>();
+    public DbSet<NotificationDispatchStep> NotificationDispatchSteps => Set<NotificationDispatchStep>();
+    public DbSet<NotificationDispatchEvent> NotificationDispatchEvents => Set<NotificationDispatchEvent>();
     public DbSet<ArchivedNotification> ArchivedNotifications { get; set; } = default!;
+    public DbSet<ArchivedNotificationDispatch> ArchivedNotificationDispatches => Set<ArchivedNotificationDispatch>();
     public DbSet<NotificationRecipient> NotificationRecipients { get; set; } = default!;
     public DbSet<NotificationDelivery> NotificationDeliveries { get; set; } = default!;
     public DbSet<NotificationDeliveryChronology> NotificationDeliveryChronology { get; set; } = default!;
@@ -59,6 +65,7 @@ public class NotificationsDbContextApp : SharedDbContext<NotificationsDbContextA
         base.OnModelCreating(modelBuilder);
         modelBuilder.AddTenantWrightMessagingEntities();
         modelBuilder.ConfigureNotifications();
+        modelBuilder.ConfigureNotificationDispatches();
         modelBuilder.Entity<TenantNotificationSuppression>(b => { b.ToTable("TenantNotificationSuppressions"); b.HasKey(x => x.TenantId); b.Property(x => x.IsSuppressed).IsRequired(); b.Property(x => x.UpdatedAtUtc).IsRequired(); });
     }
 }

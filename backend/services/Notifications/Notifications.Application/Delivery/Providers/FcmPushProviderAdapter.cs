@@ -1,3 +1,4 @@
+using Notifications.Domain.Shared.Enums;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -36,13 +37,14 @@ public sealed class FcmPushProviderAdapter : IPushProviderAdapter, ITransientDep
 
     public string ProviderName => "Fcm";
 
-    public async Task<PushProviderSendResult> SendAsync(
+    public async Task<NotificationProviderSendResult> SendAsync(
         string deviceToken,
         string title,
         string body,
         ResolvedNotificationProviderConfig config,
         CancellationToken cancellationToken = default)
     {
+        using var sendActivity = NotificationProviderTrace.Start(NotificationChannel.Push);
         var settings = JsonSerializer.Deserialize<FcmSettings>(config.SettingsJson, JsonOptions) ?? new FcmSettings();
         var secrets = DeserializeSecrets(config.Secret);
 
@@ -50,7 +52,7 @@ public sealed class FcmPushProviderAdapter : IPushProviderAdapter, ITransientDep
             string.IsNullOrWhiteSpace(secrets.ClientEmail) ||
             string.IsNullOrWhiteSpace(secrets.PrivateKey))
         {
-            throw new InvalidOperationException(
+            throw new global::Notifications.Application.Contracts.Delivery.NotificationChannelUnavailableException("provider_configuration_unavailable",
                 $"FCM configuration '{config.ConfigId}' is missing ProjectId, ClientEmail, or PrivateKey.");
         }
 
@@ -61,8 +63,8 @@ public sealed class FcmPushProviderAdapter : IPushProviderAdapter, ITransientDep
         }
         catch (Exception ex) when (ex is InvalidOperationException or CryptographicException or FormatException)
         {
-            _logger.LogWarning(ex, "FCM access token exchange failed for configuration {ConfigId}.", config.ConfigId);
-            return PushProviderSendResult.Failed("fcm_auth_failed");
+            _logger.LogWarning("FCM access token exchange failed for configuration {ConfigId}.", config.ConfigId);
+            return NotificationProviderSendResult.Unavailable("fcm_auth_failed");
         }
 
         var client = _httpClientFactory.CreateClient(HttpClientName);
@@ -81,23 +83,25 @@ public sealed class FcmPushProviderAdapter : IPushProviderAdapter, ITransientDep
         };
         request.Content = JsonContent.Create(payload, options: JsonOptions);
 
-        using var response = await client.SendAsync(request, cancellationToken);
-        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        var responseBody = await NotificationHttpResponseOutcome.ReadBodyAsync(response.Content, cancellationToken);
+        if (responseBody is null)
+            return NotificationProviderSendResult.Ambiguous("provider_response_too_large");
 
         if (response.IsSuccessStatusCode)
         {
             var messageName = TryReadMessageName(responseBody);
-            return PushProviderSendResult.Success(messageName);
+            return string.IsNullOrWhiteSpace(messageName) ? NotificationProviderSendResult.Ambiguous("fcm_acceptance_id_missing") : NotificationProviderSendResult.Success(messageName);
         }
 
-        var errorCode = TryReadErrorStatus(responseBody) ?? ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        // FCM's error body can include the device token but never the access token or private key;
-        // log only the vendor error status and HTTP status.
+        var status = TryReadErrorStatus(responseBody, (int)response.StatusCode);
+        var errorCode = status ?? ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture);
         _logger.LogWarning(
             "FCM push send failed. HttpStatus={HttpStatus}, FcmStatus={FcmStatus}.",
             (int)response.StatusCode,
             errorCode);
-        return PushProviderSendResult.Failed($"fcm_{errorCode}");
+        var documentedServerRejection = ((int)response.StatusCode, status) is (500, "INTERNAL") or (503, "UNAVAILABLE");
+        return NotificationHttpResponseOutcome.Rejection(response, $"fcm_{errorCode}", TimeSpan.FromMinutes(1), documentedServerRejection);
     }
 
     private static FcmSecrets DeserializeSecrets(string? secretJson)
@@ -127,7 +131,9 @@ public sealed class FcmPushProviderAdapter : IPushProviderAdapter, ITransientDep
         try
         {
             using var document = JsonDocument.Parse(json);
-            return document.RootElement.TryGetProperty("name", out var name) ? name.GetString() : null;
+            return document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String
+                ? name.GetString() : null;
         }
         catch (JsonException)
         {
@@ -135,7 +141,7 @@ public sealed class FcmPushProviderAdapter : IPushProviderAdapter, ITransientDep
         }
     }
 
-    private static string? TryReadErrorStatus(string json)
+    private static string? TryReadErrorStatus(string json, int httpStatus)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -145,10 +151,18 @@ public sealed class FcmPushProviderAdapter : IPushProviderAdapter, ITransientDep
         try
         {
             using var document = JsonDocument.Parse(json);
-            if (document.RootElement.TryGetProperty("error", out var error) &&
-                error.TryGetProperty("status", out var status))
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object &&
+                error.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.Number &&
+                code.TryGetInt32(out var reportedCode) && reportedCode == httpStatus &&
+                error.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String)
             {
-                return status.GetString();
+                return status.GetString() switch
+                {
+                    "INVALID_ARGUMENT" or "UNAUTHENTICATED" or "PERMISSION_DENIED" or "NOT_FOUND" or
+                    "RESOURCE_EXHAUSTED" or "INTERNAL" or "UNAVAILABLE" => status.GetString(),
+                    _ => null
+                };
             }
         }
         catch (JsonException)

@@ -77,7 +77,7 @@ public sealed class NotificationDigestPlanner : INotificationDigestPlanner, ITra
                 x => x.TenantId == notification.TenantId &&
                      x.Channel == notification.Channel &&
                      x.RecipientType == recipient.RecipientType &&
-                     x.RecipientValue == recipient.RecipientValue &&
+                     x.RecipientValueHash == recipient.RecipientValueHash &&
                      x.Frequency == frequency &&
                      x.PeriodStartUtc == period.StartUtc,
                 cancellationToken);

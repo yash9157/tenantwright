@@ -1,3 +1,4 @@
+using Notifications.Domain.Shared.Enums;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -28,12 +29,13 @@ public sealed class ApnsPushProviderAdapter : IPushProviderAdapter, ITransientDe
 
     public string ProviderName => "Apns";
 
-    public async Task<PushProviderSendResult> SendAsync(string deviceToken, string title, string body, ResolvedNotificationProviderConfig config, CancellationToken cancellationToken = default)
+    public async Task<NotificationProviderSendResult> SendAsync(string deviceToken, string title, string body, ResolvedNotificationProviderConfig config, CancellationToken cancellationToken = default)
     {
+        using var sendActivity = NotificationProviderTrace.Start(NotificationChannel.Push);
         var settings = JsonSerializer.Deserialize<ApnsSettings>(config.SettingsJson, JsonOptions) ?? new();
         var secrets = JsonSerializer.Deserialize<ApnsSecrets>(config.Secret ?? "{}", JsonOptions) ?? new();
         if (string.IsNullOrWhiteSpace(settings.TeamId) || string.IsNullOrWhiteSpace(settings.KeyId) || string.IsNullOrWhiteSpace(settings.BundleId) || string.IsNullOrWhiteSpace(secrets.PrivateKey))
-            throw new InvalidOperationException("APNs configuration is incomplete.");
+            throw new global::Notifications.Application.Contracts.Delivery.NotificationChannelUnavailableException("apns_configuration_unavailable", "APNs configuration is incomplete.");
 
         var host = settings.UseSandbox ? "https://api.sandbox.push.apple.com" : "https://api.push.apple.com";
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{host}/3/device/{Uri.EscapeDataString(deviceToken)}")
@@ -43,14 +45,15 @@ public sealed class ApnsPushProviderAdapter : IPushProviderAdapter, ITransientDe
         request.Version = HttpVersion.Version20;
         request.Headers.Authorization = new AuthenticationHeaderValue("bearer", CreateProviderToken(settings, secrets.PrivateKey));
         request.Headers.TryAddWithoutValidation("apns-topic", settings.BundleId);
-        var response = await _httpClientFactory.CreateClient(HttpClientName).SendAsync(request, cancellationToken);
+        using var response = await _httpClientFactory.CreateClient(HttpClientName)
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         if (response.IsSuccessStatusCode)
-            return PushProviderSendResult.Success(response.Headers.TryGetValues("apns-id", out var values) ? values.FirstOrDefault() : null);
+            return NotificationProviderSendResult.Success(response.Headers.TryGetValues("apns-id", out var values) ? values.FirstOrDefault() : null);
 
         var error = response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Gone or HttpStatusCode.NotFound
             ? "apns_bad_device_token" : $"apns_{(int)response.StatusCode}";
         _logger.LogWarning("APNs delivery failed for configuration {ConfigId} with status {StatusCode}.", config.ConfigId, (int)response.StatusCode);
-        return PushProviderSendResult.Failed(error);
+        return NotificationHttpResponseOutcome.Rejection(response, error, TimeSpan.FromMinutes(15), documentedServerRejection: true);
     }
 
     private static string CreateProviderToken(ApnsSettings settings, string privateKey)

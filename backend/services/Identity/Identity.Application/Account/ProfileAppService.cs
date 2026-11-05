@@ -235,26 +235,32 @@ public class ProfileAppService : IProfileAppService, ITransientDependency
         var command = new NotificationSendRequestedHostEto
         {
             RequestId = Guid.CreateVersion7(),
-            Channel = NotificationSendChannel.Email,
-            Subject = "Confirm your new email address",
-            TemplateName = options.TemplateName,
-            TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
+            OccurredAtUtc = DateTime.UtcNow,
+            SourceService = "identity-service",
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.Email,
+                        Subject = "Confirm your new email address",
+                        TemplateName = options.TemplateName,
+                        TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 ["link"] = link,
                 ["userId"] = user.Id.ToString("D"),
                 ["userName"] = user.UserName,
                 ["newEmail"] = pendingEmail
+            }
+                    }]
             },
-            Recipients =
-            [
+            Recipients = IdentityNotificationContractPublisher.CreateSingleChannelRecipients(NotificationSendChannel.Email, [
                 new NotificationRecipientEto
                 {
                     RecipientType = NotificationSendRecipientType.EmailAddress,
                     RecipientValue = pendingEmail
                 }
-            ],
-            OccurredAtUtc = DateTime.UtcNow,
-            SourceService = "identity-service"
+            ], null),
         };
 
         Guid? tenantId = user.TenantId == Guid.Empty ? null : user.TenantId;

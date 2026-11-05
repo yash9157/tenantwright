@@ -78,9 +78,9 @@ public sealed class MetaWhatsAppWebhookController : ControllerBase
         var rawBody = await reader.ReadToEndAsync(cancellationToken);
         var rawBodyBytes = Encoding.UTF8.GetBytes(rawBody);
 
-        // The configuration, and the deliveries it sent, live in the database of the tenant that owns it.
-        using var configDatabase = _databaseLocator.Enter(await _databaseLocator.FindProviderConfigDatabaseAsync(configId, cancellationToken));
-        var config = await _resolver.ResolveByConfigIdAsync(configId, NotificationChannel.WhatsApp, cancellationToken);
+        ResolvedNotificationProviderConfig? config;
+        using (_databaseLocator.Enter(await _databaseLocator.FindProviderConfigDatabaseAsync(configId, cancellationToken)))
+            config = await _resolver.ResolveByConfigIdAsync(configId, NotificationChannel.WhatsApp, cancellationToken);
         var appSecret = config != null ? DeserializeAppSecret(config.Secret) : null;
         if (string.IsNullOrEmpty(appSecret))
         {
@@ -99,9 +99,12 @@ public sealed class MetaWhatsAppWebhookController : ControllerBase
             var mapped = MapStatus(status.Status);
             if (mapped.HasValue && !string.IsNullOrWhiteSpace(status.MessageId))
             {
+                using var deliveryDatabase = _databaseLocator.Enter(
+                    await _databaseLocator.FindProviderMessageDatabaseAsync(status.MessageId, cancellationToken));
                 await _receiptService.ApplyProviderStatusAsync(
                     status.MessageId,
                     NotificationChannel.WhatsApp,
+                    configId,
                     mapped.Value,
                     status.ErrorCode,
                     cancellationToken);

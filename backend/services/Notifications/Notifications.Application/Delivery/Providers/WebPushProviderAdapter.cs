@@ -1,3 +1,4 @@
+using Notifications.Domain.Shared.Enums;
 using System.Net;
 using System.Text.Json;
 using Lib.Net.Http.WebPush;
@@ -26,15 +27,16 @@ public sealed class WebPushProviderAdapter : IPushProviderAdapter, ITransientDep
 
     public string ProviderName => "WebPush";
 
-    public async Task<PushProviderSendResult> SendAsync(string deviceToken, string title, string body, ResolvedNotificationProviderConfig config, CancellationToken cancellationToken = default)
+    public async Task<NotificationProviderSendResult> SendAsync(string deviceToken, string title, string body, ResolvedNotificationProviderConfig config, CancellationToken cancellationToken = default)
     {
+        using var sendActivity = NotificationProviderTrace.Start(NotificationChannel.Push);
         var settings = JsonSerializer.Deserialize<WebPushSettings>(config.SettingsJson, JsonOptions) ?? new();
         var secrets = JsonSerializer.Deserialize<WebPushSecrets>(config.Secret ?? "{}", JsonOptions) ?? new();
         var subscriptionPayload = JsonSerializer.Deserialize<WebPushSubscriptionPayload>(deviceToken, JsonOptions) ?? new();
         if (!Uri.TryCreate(subscriptionPayload.Endpoint, UriKind.Absolute, out var endpoint) || endpoint.Scheme != Uri.UriSchemeHttps ||
             string.IsNullOrWhiteSpace(subscriptionPayload.P256dh) || string.IsNullOrWhiteSpace(subscriptionPayload.Auth) ||
             string.IsNullOrWhiteSpace(settings.Subject) || string.IsNullOrWhiteSpace(settings.PublicKey) || string.IsNullOrWhiteSpace(secrets.PrivateKey))
-            throw new InvalidOperationException("Web Push configuration or subscription is incomplete.");
+            throw new global::Notifications.Application.Contracts.Delivery.NotificationChannelUnavailableException("webpush_configuration_unavailable", "Web Push configuration or subscription is incomplete.");
 
         var subscription = new PushSubscription { Endpoint = endpoint.AbsoluteUri };
         subscription.SetKey(PushEncryptionKeyName.P256DH, subscriptionPayload.P256dh);
@@ -48,17 +50,18 @@ public sealed class WebPushProviderAdapter : IPushProviderAdapter, ITransientDep
         {
             var client = new PushServiceClient(_httpClientFactory.CreateClient(HttpClientName));
             await client.RequestPushMessageDeliveryAsync(subscription, message, authentication, cancellationToken);
-            return PushProviderSendResult.Success(null);
+            return NotificationProviderSendResult.Success(null);
         }
         catch (PushServiceClientException ex) when (ex.StatusCode is HttpStatusCode.Gone or HttpStatusCode.NotFound)
         {
             _logger.LogWarning("Web Push subscription expired for configuration {ConfigId}.", config.ConfigId);
-            return PushProviderSendResult.Failed("webpush_subscription_gone");
+            return NotificationProviderSendResult.PermanentRejection("webpush_subscription_gone");
         }
         catch (PushServiceClientException ex)
         {
             _logger.LogWarning("Web Push delivery failed for configuration {ConfigId} with status {StatusCode}.", config.ConfigId, (int)ex.StatusCode);
-            return PushProviderSendResult.Failed($"webpush_{(int)ex.StatusCode}");
+            using var response = new HttpResponseMessage(ex.StatusCode);
+            return NotificationHttpResponseOutcome.Rejection(response, $"webpush_{(int)ex.StatusCode}");
         }
     }
 }

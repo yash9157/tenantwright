@@ -1,3 +1,4 @@
+using Notifications.Application.Contracts.Channels;
 using Notifications.Application.Contracts.Delivery;
 using Notifications.Application.Contracts.Emailing;
 using Notifications.Application.Contracts.Templates;
@@ -160,13 +161,13 @@ public class NotificationDeliverySafetyTests
 
     private sealed class CapturingEmailSender : IEmailNotificationSender
     {
-        public Task<string?> SendAsync(
+        public Task<NotificationProviderSendResult> SendAsync(
             string to,
             string subject,
             string htmlBody,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<string?>("accepted");
+            return Task.FromResult(NotificationProviderSendResult.Success("accepted"));
         }
     }
 

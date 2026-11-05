@@ -223,3 +223,39 @@ This walk-through follows an existing event, `TenantOwnershipInvitationRequested
    - Never re-register neutral services.
 3. **Make it selectable.** Add a value to the `TenantWrightMessagingProvider` enum. Add an instance to `TenantWrightMessagingProviders.Installed` in [`shared/Shared.EventBus.Hosting/TenantWrightMessagingProviders.cs`](../backend/shared/Shared.EventBus.Hosting/TenantWrightMessagingProviders.cs), and reference the project from `Shared.EventBus.Hosting`.
 4. **Wire the tooling.** Allow the value in `LocalMessaging.ReadProvider` (AppHost) and in the `-MessagingProvider` sets of `charts/helm-install-all.ps1` and `charts/apply-secrets.ps1`. Then add provider tests modelled on `tests/Shared.EventBus.Wolverine.Tests`.
+
+## Notification delivery plans
+
+The existing tenant-required `NotificationSendRequestedTenantEto` and host-only
+`NotificationSendRequestedHostEto` retain their reviewed message identities and
+producer allow-lists. They now carry `DeliveryPlan` and keyed `Recipients` rather
+than a channel-specific root payload. Nested plan components are DTOs, not
+independently routable events. One-step plans retain ordinary one-channel intent.
+
+`DeliveryPlan.Mode` explicitly selects `Parallel` or `OrderedFallback`.
+`DeliveryPlan.Steps` orders distinct channels; each includes `Channel`,
+`TemplateName`, `Subject` and a bounded `TemplateModel`. Each recipient bundle has
+an immutable `Key`, optional `PreferenceUserId` and explicit channel-bound
+`Destinations` (`Channel`, `RecipientType`, `RecipientValue`). Equal list positions
+never associate contacts across channels. A group audience is only admitted in
+an App-only one-step plan and still passes the existing disabled-by-default
+resolver; this does not enable group delivery.
+
+Common metadata includes `RequestId`, `SourceService`, category/priority,
+`OccurredAtUtc`, optional `ScheduledForUtc` and `ExpiresAtUtc`, and preference
+settings. Admission fingerprints canonical content. An identical request ID and
+content in the same scope returns the original dispatch; different content is a
+conflict. Keep metadata, including occurrence time, immutable on redelivery.
+Tenant and host requests cannot substitute for each other or change ambient scope.
+
+Dispatch admission never recursively calls itself to create children. Service-owned
+`NotificationChannelRequestTenant`/`NotificationChannelRequestHost` inputs belong
+to the existing scheduler. Provider outcomes distinguish accepted/delivered,
+definitive retryable/permanent rejection, unavailable-before-send and ambiguous.
+Unknown exceptions, timeouts, invalid provider outcomes and lost send leases
+require review; they never automatically authorize another copy. Callback identity
+collisions fail closed. SMTP correlation uses the MIME message ID.
+
+This pre-release wire replacement has no legacy payload alias. Coordinate producer
+and consumer rollout and resolve queued old-shape messages explicitly; do not
+reset persistent queues or databases as an implicit migration step.

@@ -1,3 +1,4 @@
+using Notifications.Application.Dispatches;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Notifications.Application.Contracts.Delivery;
@@ -99,15 +100,16 @@ public sealed class NotificationDigestProcessor : ITransientDependency
             var result = await NotificationContractFactory.ScheduleAsync(
                 _scheduler,
                 bucket.TenantId,
-                new NotificationSendRequestedHostEto
+                new NotificationChannelRequestHost
                 {
                     RequestId = bucket.Id,
+                    DigestBucketId = bucket.Id,
                     Channel = MapChannel(bucket.Channel),
                     Subject = "Notification digest",
                     TemplateName = "Notifications.Digest",
                     Category = "Notifications.Digest",
                     Priority = NotificationSendPriority.Normal,
-                    SourceService = "notifications-digest",
+                    SourceService = NotificationDispatchRecoveryGate.DigestSourceService,
                     OccurredAtUtc = occurredAtUtc,
                     TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
@@ -125,6 +127,8 @@ public sealed class NotificationDigestProcessor : ITransientDependency
                     ]
                 },
                 cancellationToken);
+            if (result.RequiresReview)
+                return true;
             if (!result.Accepted || result.NotificationId == Guid.Empty)
             {
                 throw new InvalidOperationException("Digest delivery was not accepted.");
@@ -237,7 +241,8 @@ public sealed class NotificationDigestProcessor : ITransientDependency
                 var bucket = await unitOfWorkDbContext.NotificationDigestBuckets
                     .IgnoreQueryFilters()
                     .FirstOrDefaultAsync(
-                        x => x.Id == bucketId && x.Status == NotificationDigestBucketStatus.Processing,
+                        x => x.Id == bucketId && (x.Status == NotificationDigestBucketStatus.Processing ||
+                             x.Status == NotificationDigestBucketStatus.Emitted && x.EmittedNotificationId == notificationId),
                         operationToken);
                 if (bucket == null)
                 {

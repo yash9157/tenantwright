@@ -1,3 +1,4 @@
+using Notifications.Application.Contracts.Delivery;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Notifications.Application.Contracts.Channels;
@@ -38,7 +39,7 @@ public sealed class ConfigurablePushNotificationSender : IPushNotificationSender
         _protector = protector;
     }
 
-    public async Task<PushSendOutcome> SendAsync(
+    public async Task<NotificationProviderSendResult> SendAsync(
         string deviceToken,
         string title,
         string body,
@@ -49,18 +50,18 @@ public sealed class ConfigurablePushNotificationSender : IPushNotificationSender
         switch (mode)
         {
             case NotificationProviderMode.MockSuccess:
-                return new PushSendOutcome { ProviderMessageId = $"mock-push-{Guid.CreateVersion7():N}" };
+                return NotificationProviderSendResult.Success($"mock-push-{Guid.CreateVersion7():N}");
 
             case NotificationProviderMode.Live:
                 return await SendLiveAsync(deviceToken, title, body, cancellationToken);
 
             default:
-                throw new InvalidOperationException(
+                throw new NotificationChannelUnavailableException("provider_configuration_unavailable",
                     "Push provider is disabled. Set Notifications:Providers:Push=MockSuccess|Live or configure a real provider.");
         }
     }
 
-    private async Task<PushSendOutcome> SendLiveAsync(string deviceToken, string title, string body, CancellationToken cancellationToken)
+    private async Task<NotificationProviderSendResult> SendLiveAsync(string deviceToken, string title, string body, CancellationToken cancellationToken)
     {
         var tenantId = _currentTenant.Id;
 
@@ -84,19 +85,19 @@ public sealed class ConfigurablePushNotificationSender : IPushNotificationSender
         }
         if (registeredDevice == null)
         {
-            throw new InvalidOperationException("push_device_token_not_registered");
+            throw new NotificationChannelUnavailableException("provider_configuration_unavailable", "push_device_token_not_registered");
         }
         var decryptedDeviceToken = _protector.Unprotect(tenantId, NotificationChannel.Push, registeredDevice.Id, registeredDevice.DeviceToken);
         if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(decryptedDeviceToken), Encoding.UTF8.GetBytes(deviceToken)))
-            throw new InvalidOperationException("push_device_token_not_registered");
+            throw new NotificationChannelUnavailableException("provider_configuration_unavailable", "push_device_token_not_registered");
 
         var resolved = await _resolver.ResolveAsync(tenantId, NotificationChannel.Push, cancellationToken)
-            ?? throw new InvalidOperationException(
+            ?? throw new NotificationChannelUnavailableException("provider_configuration_unavailable",
                 "No active push provider configuration is available. Configure a Super Admin default or tenant override.");
 
         var adapter = _adapters.FirstOrDefault(
             x => string.Equals(x.ProviderName, resolved.ProviderType, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException(
+            ?? throw new NotificationChannelUnavailableException("provider_configuration_unavailable",
                 $"No push provider adapter is registered for provider '{resolved.ProviderType}'.");
 
         var result = await adapter.SendAsync(decryptedDeviceToken, title, body, resolved, cancellationToken);
@@ -107,10 +108,10 @@ public sealed class ConfigurablePushNotificationSender : IPushNotificationSender
                 registeredDevice.Deactivate();
                 await _deviceTokenRepository.UpdateAsync(registeredDevice, autoSave: true, cancellationToken: cancellationToken);
             }
-            throw new InvalidOperationException(result.ErrorCode ?? "push_provider_failed");
+            return result.WithConfiguration(resolved.ConfigId);
         }
 
-        return new PushSendOutcome { ProviderMessageId = result.ProviderMessageId, ProviderConfigId = resolved.ConfigId };
+        return result.WithConfiguration(resolved.ConfigId);
     }
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value.Trim())));

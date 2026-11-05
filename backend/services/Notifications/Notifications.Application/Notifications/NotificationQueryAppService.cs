@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Notifications.Application.Contracts.Common;
 using Notifications.Application.Contracts.Notifications;
 using Notifications.Application.Delivery;
+using Notifications.Application.Dispatches;
 using Notifications.Domain.Notifications;
 using Notifications.Domain.Shared.Constants;
 using Notifications.Domain.Shared.Enums;
@@ -208,6 +209,14 @@ public sealed class NotificationQueryAppService : INotificationQueryAppService, 
         EnsureTenantAccess(notification.TenantId);
 
         var deliveries = await _deliveryRepository.WithDetailsAsync(x => x.Recipient);
+        var includeRecipient = _querySecurityOptions.IncludeRecipientValue;
+        if (includeRecipient && (notification.DispatchStepId.HasValue || notification.Channel == NotificationChannel.Push ||
+            await NotificationDispatchRecoveryGate.IsRoutedDigestAsync(_notificationRepository, notification)))
+        {
+            includeRecipient = await _permissionChecker.IsGrantedAsync(_currentPrincipalAccessor.Principal, NotificationsPermissions.Query.ReadSensitivePayload);
+            if (includeRecipient)
+                await PublishSensitivePayloadReadAuditAsync(notification, _currentPrincipalAccessor.Principal);
+        }
 
         return await deliveries
             .Where(x => x.NotificationId == notificationId && x.TenantId == notification.TenantId)
@@ -220,7 +229,7 @@ public sealed class NotificationQueryAppService : INotificationQueryAppService, 
                 NotificationId = delivery.NotificationId,
                 RecipientId = delivery.RecipientId,
                 RecipientType = delivery.Recipient.RecipientType,
-                RecipientValue = _querySecurityOptions.IncludeRecipientValue
+                RecipientValue = includeRecipient
                     ? delivery.Recipient.RecipientValue
                     : string.Empty,
                 Status = delivery.Status,

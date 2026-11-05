@@ -73,10 +73,11 @@ public static class NotificationsDbContextModelCreatingExtensions
             b.Property(x => x.TenantId);
             b.Property(x => x.NotificationId).IsRequired();
             b.Property(x => x.RecipientType).IsRequired();
-            b.Property(x => x.RecipientValue).IsRequired().HasMaxLength(256);
+            b.Property(x => x.RecipientValue).IsRequired().HasMaxLength(4096);
+            b.Property(x => x.RecipientValueHash).IsRequired().HasMaxLength(64);
 
             b.HasIndex(x => x.NotificationId);
-            b.HasIndex(x => new { x.NotificationId, x.RecipientType, x.RecipientValue }).IsUnique();
+            b.HasIndex(x => new { x.NotificationId, x.RecipientType, x.RecipientValueHash }).IsUnique();
         });
 
         builder.Entity<NotificationDelivery>(b =>
@@ -250,7 +251,8 @@ public static class NotificationsDbContextModelCreatingExtensions
             b.Property(x => x.ScopeKey).IsRequired().HasMaxLength(36);
             b.Property(x => x.Channel).IsRequired();
             b.Property(x => x.RecipientType).IsRequired();
-            b.Property(x => x.RecipientValue).IsRequired().HasMaxLength(256);
+            b.Property(x => x.RecipientValue).IsRequired().HasMaxLength(4096);
+            b.Property(x => x.RecipientValueHash).IsRequired().HasMaxLength(64);
             b.Property(x => x.Frequency).IsRequired();
             b.Property(x => x.PeriodStartUtc).IsRequired();
             b.Property(x => x.PeriodEndUtc).IsRequired();
@@ -258,7 +260,7 @@ public static class NotificationsDbContextModelCreatingExtensions
             b.Property(x => x.AttemptCount).IsRequired();
             b.Property(x => x.EmittedAtUtc);
             b.Property(x => x.EmittedNotificationId);
-            b.HasIndex(x => new { x.ScopeKey, x.Channel, x.RecipientType, x.RecipientValue, x.Frequency, x.PeriodStartUtc })
+            b.HasIndex(x => new { x.ScopeKey, x.Channel, x.RecipientType, x.RecipientValueHash, x.Frequency, x.PeriodStartUtc })
                 .HasDatabaseName("IX_NotificationDigestBuckets_Scope_Channel_Recipient_Period")
                 .IsUnique();
             b.HasIndex(x => new { x.Status, x.PeriodEndUtc, x.Id });

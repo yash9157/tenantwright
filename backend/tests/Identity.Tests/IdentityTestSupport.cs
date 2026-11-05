@@ -84,10 +84,19 @@ internal static class IdentityTestSupport
         IReadOnlyList<NotificationRecipientEto> Recipients)
     {
         public static CapturedNotificationRequest From(NotificationSendRequestedTenantEto input)
-            => new(input.TenantId, input.RequestId, input.TemplateName, input.TemplateModel, input.Recipients);
+            => new(input.TenantId, input.RequestId, input.DeliveryPlan.Steps.Single().TemplateName,
+                input.DeliveryPlan.Steps.Single().TemplateModel, Destinations(input.Recipients));
 
         public static CapturedNotificationRequest From(NotificationSendRequestedHostEto input)
-            => new(null, input.RequestId, input.TemplateName, input.TemplateModel, input.Recipients);
+            => new(null, input.RequestId, input.DeliveryPlan.Steps.Single().TemplateName,
+                input.DeliveryPlan.Steps.Single().TemplateModel, Destinations(input.Recipients));
+
+        private static NotificationRecipientEto[] Destinations(IEnumerable<NotificationRecipientPlan> recipients) =>
+            recipients.SelectMany(recipient => recipient.Destinations).Select(destination => new NotificationRecipientEto
+            {
+                RecipientType = destination.RecipientType,
+                RecipientValue = destination.RecipientValue
+            }).ToArray();
     }
 
     public static IdentityDbContextApp CreateDbContext(ICurrentTenant? currentTenant = null)

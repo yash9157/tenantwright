@@ -91,9 +91,9 @@ public class NotificationScheduledSendTests
             NullLogger<NotificationDeliveryScheduler>.Instance);
     }
 
-    private static NotificationSendRequestedTenantEto CreateRequest(Guid tenantId, Guid requestId)
+    private static NotificationChannelRequestTenant CreateRequest(Guid tenantId, Guid requestId)
     {
-        return new NotificationSendRequestedTenantEto
+        return new NotificationChannelRequestTenant
         {
             RequestId = requestId,
             TenantId = tenantId,

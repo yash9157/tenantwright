@@ -20,7 +20,10 @@ The build treats warnings as errors (`TreatWarningsAsErrors` in `Directory.Build
 
 | Suite | Persistence / infrastructure | Requirement |
 |---|---|---|
-| Service tests (`Auth`, `Identity`, `Tenant`, `Permissions`, `AuditLogs`, `Notifications`, `Workflows`) | EF Core InMemory and/or SQLite, Moq | none |
+| Service tests (`Auth`, `Identity`, `Tenant`, `Permissions`, `AuditLogs`, `Workflows`) | EF Core InMemory and/or SQLite, Moq | none |
+| `Notifications.Tests` without container categories | EF Core InMemory/SQLite | none |
+| `Notifications.Tests`, `Category=PostgresIntegration` | Disposable PostgreSQL databases | **Docker** |
+| `Notifications.Tests`, `Category=ValkeyIntegration` | Disposable Valkey server, independent clients | **Docker** |
 | `Gateway.Tests`, `TenantWright.AppHost.Tests` | In-process; static checks of the AppHost wiring and generated broker definitions | none |
 | Most `Shared.*.Tests` | In-process | none |
 | `Shared.Valkey.IntegrationTests` | Valkey container (Testcontainers) | **Docker** |
@@ -31,7 +34,7 @@ The build treats warnings as errors (`TreatWarningsAsErrors` in `Directory.Build
 Only the MassTransit live tests skip themselves. The other container-backed suites expect Docker and fail without it. To run without Docker, exclude them:
 
 ```powershell
-dotnet test TenantWright.slnx --filter "Category!=PostgresIntegration&Category!=RabbitMqIntegration&FullyQualifiedName!~Shared.Valkey.IntegrationTests&FullyQualifiedName!~WolverineRabbitMqIntegrationTests"
+dotnet test TenantWright.slnx --filter "Category!=PostgresIntegration&Category!=ValkeyIntegration&Category!=RabbitMqIntegration&FullyQualifiedName!~Shared.Valkey.IntegrationTests&FullyQualifiedName!~WolverineRabbitMqIntegrationTests"
 ```
 
 To run the licensed MassTransit suites, set the environment for the session (never commit a licence):
@@ -74,3 +77,22 @@ checks event placement and application charts. Licensed MassTransit integration
 tests skip under their existing opt-in rules. The workflow uses no repository
 secrets. A separate job reports the result for the reviewed commit. After a new
 push, review the new commit and start a new run before merging.
+
+## Notification orchestration verification
+
+`Notifications.Tests` covers dispatch admission/idempotency, independent recipient
+fallback, acceptance/review/expiry holds, cancellation during preparation, exact API
+permissions and sensitive redaction, provider timeout/outcome handling, bounded
+archiving, and real PostgreSQL constraints/concurrency/migration backfills.
+`NotificationQuotaReservationTests` exercises atomic concurrent reservations from
+two Valkey clients, immutable binding, denial without partial consumption and
+window rollover. No real notification provider is called.
+
+```powershell
+dotnet test tests/Notifications.Tests/Notifications.Tests.csproj --filter "Category!=PostgresIntegration&Category!=ValkeyIntegration"
+dotnet test tests/Notifications.Tests/Notifications.Tests.csproj --filter "Category=PostgresIntegration"
+dotnet test tests/Notifications.Tests/Notifications.Tests.csproj --filter "Category=ValkeyIntegration"
+```
+
+The last two commands start and dispose their own containers. Agents must obtain
+the explicit runtime approval required by the workspace instructions first.

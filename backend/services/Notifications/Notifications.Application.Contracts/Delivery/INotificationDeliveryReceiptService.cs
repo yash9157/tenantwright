@@ -11,13 +11,14 @@ public enum NotificationDeliveryReceiptStatus
 public interface INotificationDeliveryReceiptService
 {
     /// <summary>
-    /// Applies a provider delivery receipt to the matching delivery (found by provider message id).
-    /// Runs host-context (no ambient tenant). Idempotent: re-applying the same terminal status is a
-    /// no-op. Returns true when a matching delivery was found.
+    /// Applies a verified receipt to the current attempt in the owning database. The channel and
+    /// configuration must match the callback's authenticated provider identity. Reapplying the same
+    /// terminal status is a no-op.
     /// </summary>
     Task<bool> ApplyProviderStatusAsync(
         string providerMessageId,
         NotificationChannel channel,
+        Guid authenticatedProviderConfigId,
         NotificationDeliveryReceiptStatus status,
         string? providerErrorCode,
         CancellationToken cancellationToken = default);

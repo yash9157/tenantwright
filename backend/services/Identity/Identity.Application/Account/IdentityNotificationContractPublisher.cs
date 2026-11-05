@@ -21,6 +21,17 @@ internal static class IdentityNotificationContractPublisher
             : eventBus.SendCommandAsync(template, cancellationToken: cancellationToken);
     }
 
+    public static List<NotificationRecipientPlan> CreateSingleChannelRecipients(NotificationSendChannel channel,
+        IEnumerable<NotificationRecipientEto> recipients, Guid? preferenceUserId = null) => recipients.Select((recipient, index) => new NotificationRecipientPlan
+        {
+            Key = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            PreferenceUserId = preferenceUserId,
+            Destinations = [new NotificationDestination
+            {
+                Channel = channel, RecipientType = recipient.RecipientType, RecipientValue = recipient.RecipientValue
+            }]
+        }).ToList();
+
     private static NotificationSendRequestedTenantEto CreateTenant(
         Guid tenantId,
         NotificationSendRequestedHostEto source)
@@ -29,11 +40,6 @@ internal static class IdentityNotificationContractPublisher
         {
             TenantId = tenantId,
             RequestId = source.RequestId,
-            Channel = source.Channel,
-            Subject = source.Subject,
-            TemplateName = source.TemplateName,
-            TemplateModel = source.TemplateModel,
-            Recipients = source.Recipients,
             Category = source.Category,
             Priority = source.Priority,
             ActionUrl = source.ActionUrl,
@@ -41,8 +47,10 @@ internal static class IdentityNotificationContractPublisher
             ScheduledForUtc = source.ScheduledForUtc,
             SourceService = source.SourceService,
             RespectUserPreferences = source.RespectUserPreferences,
-            PreferenceUserId = source.PreferenceUserId,
-            PreferenceKey = source.PreferenceKey
+            PreferenceKey = source.PreferenceKey,
+            DeliveryPlan = source.DeliveryPlan,
+            Recipients = source.Recipients,
+            ExpiresAtUtc = source.ExpiresAtUtc,
         };
     }
 }

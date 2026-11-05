@@ -4,6 +4,8 @@ using Notifications.Domain.Shared.Enums;
 using Notifications.EntityFrameworkCore.EntityFrameworkCore;
 using Shared.Modularity.DependencyInjection;
 using Shared.EntityFrameworkCore;
+using Shared.EntityFrameworkCore.TenantDatabases;
+using Notifications.Application.Dispatches;
 namespace Notifications.Application.Delivery;
 
 /// <summary>
@@ -24,28 +26,34 @@ public sealed class NotificationDeliveryReceiptService : INotificationDeliveryRe
     public async Task<bool> ApplyProviderStatusAsync(
         string providerMessageId,
         NotificationChannel channel,
+        Guid authenticatedProviderConfigId,
         NotificationDeliveryReceiptStatus status,
         string? providerErrorCode,
         CancellationToken cancellationToken = default)
     {
         var unitOfWorkDbContext = await _dbContextProvider.GetDbContextAsync();
-        if (string.IsNullOrWhiteSpace(providerMessageId))
+        if (string.IsNullOrWhiteSpace(providerMessageId) || authenticatedProviderConfigId == Guid.Empty)
         {
             return false;
         }
 
-        var delivery = await unitOfWorkDbContext.NotificationDeliveries
+        var matches = await unitOfWorkDbContext.NotificationDeliveries
             .IgnoreQueryFilters()
+            .WhereOwnedByCurrentDatabase()
             .Include(x => x.Notification)
-            .FirstOrDefaultAsync(x => x.ProviderMessageId == providerMessageId && x.Notification.Channel == channel, cancellationToken);
+            .Where(x => x.ProviderMessageId == providerMessageId && x.Notification.Channel == channel)
+            .Take(2).ToListAsync(cancellationToken);
 
-        if (delivery == null)
+        if (matches.Count != 1 || matches[0].ProviderConfigId != authenticatedProviderConfigId)
         {
             return false;
         }
+        var delivery = matches[0];
 
+        providerErrorCode = Providers.NotificationHttpResponseOutcome.NumericProviderCode(providerErrorCode);
         var now = DateTime.UtcNow;
         var providerActor = $"{channel}.callback";
+        var contradictoryReceipt = false;
 
         // Provider callbacks may be redelivered. Failed is terminal once the optimistic Sent state
         // changes, while delivered remains represented by Sent and therefore needs an explicit
@@ -60,12 +68,13 @@ public sealed class NotificationDeliveryReceiptService : INotificationDeliveryRe
             var reason = string.IsNullOrWhiteSpace(providerErrorCode)
                 ? "provider_reported_failure"
                 : $"provider_reported_failure:{providerErrorCode}";
-            delivery.MarkDeadLettered(
-                reason,
-                now,
-                providerActor,
-                NotificationDeliveryActorType.Provider,
-                providerErrorCode);
+            if (delivery.Status == NotificationStatus.Delivered)
+            {
+                contradictoryReceipt = true;
+                delivery.MarkNeedsReview("contradictory_delivery_evidence", now, providerActor, NotificationDeliveryActorType.Provider);
+            }
+            else
+                delivery.MarkDeadLettered(reason, now, providerActor, NotificationDeliveryActorType.Provider, providerErrorCode);
         }
         else
         {
@@ -89,8 +98,16 @@ public sealed class NotificationDeliveryReceiptService : INotificationDeliveryRe
                     responseCode: providerErrorCode,
                     eventKind: NotificationDeliveryEventKind.ProviderDelivered);
             }
+            else if (delivery.Status == NotificationStatus.DeadLettered)
+            {
+                contradictoryReceipt = true;
+                delivery.RecordProviderFeedback(now, providerActor, providerErrorCode, "contradictory_delivery_evidence",
+                    NotificationDeliveryEventKind.ProviderDelivered);
+                delivery.MarkNeedsReview("contradictory_delivery_evidence", now, providerActor, NotificationDeliveryActorType.Provider);
+            }
         }
 
+        await NotificationDispatchGate.DirtyAsync(unitOfWorkDbContext, delivery.Notification, now, cancellationToken, contradictoryReceipt);
         await unitOfWorkDbContext.SaveChangesAsync(cancellationToken);
         return true;
     }

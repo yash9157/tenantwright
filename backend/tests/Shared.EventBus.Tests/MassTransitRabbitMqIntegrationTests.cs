@@ -144,14 +144,32 @@ public sealed class MassTransitRabbitMqIntegrationTests
                     {
                         RequestId = Guid.NewGuid(),
                         TenantId = tenantId,
-                        Channel = NotificationSendChannel.App,
-                        Subject = "Test",
-                        TemplateName = "test",
                         Category = "test",
                         Priority = NotificationSendPriority.Normal,
                         OccurredAtUtc = DateTime.UtcNow,
                         SourceService = TestPrincipal,
-                        RespectUserPreferences = false
+                        RespectUserPreferences = false,
+                        DeliveryPlan = new NotificationDeliveryPlan
+                        {
+                            Mode = NotificationDeliveryMode.Parallel,
+                            Steps = [new NotificationChannelPlan
+                                {
+                                    Channel = NotificationSendChannel.App,
+                                    Subject = "Test",
+                                    TemplateName = "test"
+                                }]
+                        },
+                        Recipients = ((IEnumerable<NotificationRecipientEto>)[]).Select((recipient, index) => new NotificationRecipientPlan
+                        {
+                            Key = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                            PreferenceUserId = null,
+                            Destinations = [new NotificationDestination
+                            {
+                                Channel = NotificationSendChannel.App,
+                                RecipientType = recipient.RecipientType,
+                                RecipientValue = recipient.RecipientValue
+                            }]
+                        }).ToList(),
                     },
                     timeout.Token));
                 Assert.True(

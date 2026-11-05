@@ -65,17 +65,20 @@ public class WhatsAppPushProviderTests
         Assert.Equal(0, handler.CallCount);
     }
 
-    [Fact]
-    public async Task WhatsAppAdapter_maps_failure_to_error_code()
+    [Theory]
+    [InlineData("{\"error\":{\"code\":131047,\"message\":\"Re-engagement message\"}}", "whatsapp_131047")]
+    [InlineData("{\"error\":{\"code\":\"private-recipient\"}}", "whatsapp_400")]
+    [InlineData("{\"error\":\"private-recipient\"}", "whatsapp_400")]
+    public async Task WhatsAppAdapter_exposes_only_numeric_provider_error_codes(string body, string expectedCode)
     {
-        var handler = new StubHandler(HttpStatusCode.BadRequest, "{\"error\":{\"code\":131047,\"message\":\"Re-engagement message\"}}");
+        var handler = new StubHandler(HttpStatusCode.BadRequest, body);
         var adapter = new MetaWhatsAppCloudProviderAdapter(new StubHttpClientFactory(handler), NullLogger<MetaWhatsAppCloudProviderAdapter>.Instance);
         var config = BuildWhatsAppConfig(approvedTemplates: ["event_reminder"], accessToken: "token");
 
         var result = await adapter.SendAsync("+15551111111", "event_reminder", "Your event is tomorrow.", config);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("whatsapp_131047", result.ErrorCode);
+        Assert.Equal(expectedCode, result.ErrorCode);
     }
 
     // ---- Meta webhook signature validation ----
@@ -158,14 +161,20 @@ public class WhatsAppPushProviderTests
         Assert.Equal("projects/demo/messages/0:1234", result.ProviderMessageId);
     }
 
-    [Fact]
-    public async Task FcmAdapter_maps_unregistered_token_failure_to_error_code()
+    [Theory]
+    [InlineData(404, "{\"error\":{\"code\":404,\"status\":\"NOT_FOUND\"}}", NotificationSendOutcome.PermanentRejection, "fcm_NOT_FOUND")]
+    [InlineData(503, "{\"error\":{\"code\":503,\"status\":\"UNAVAILABLE\"}}", NotificationSendOutcome.RetryableRejection, "fcm_UNAVAILABLE")]
+    [InlineData(503, "{\"error\":{\"code\":500,\"status\":\"UNAVAILABLE\"}}", NotificationSendOutcome.Ambiguous, "fcm_503")]
+    [InlineData(503, "{\"error\":{\"code\":503,\"status\":\"private-device-token\"}}", NotificationSendOutcome.Ambiguous, "fcm_503")]
+    [InlineData(503, "<html>Gateway unavailable</html>", NotificationSendOutcome.Ambiguous, "fcm_503")]
+    public async Task FcmAdapter_requires_matching_provider_evidence_to_retry_server_errors(int status, string body,
+        NotificationSendOutcome outcome, string expectedCode)
     {
         using var rsa = RSA.Create(2048);
         var privateKeyPem = rsa.ExportPkcs8PrivateKeyPem();
 
         var tokenHandler = new CapturingTokenHandler("{\"access_token\":\"ya29.fake-token\"}");
-        var sendHandler = new StubHandler(HttpStatusCode.NotFound, "{\"error\":{\"status\":\"UNREGISTERED\",\"message\":\"Requested entity was not found.\"}}");
+        var sendHandler = new StubHandler((HttpStatusCode)status, body);
         var routingHandler = new RoutingHandler(tokenHandler, sendHandler);
 
         var adapter = new FcmPushProviderAdapter(
@@ -177,8 +186,8 @@ public class WhatsAppPushProviderTests
 
         var result = await adapter.SendAsync("stale-device-token", "Title", "Body", config);
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal("fcm_UNREGISTERED", result.ErrorCode);
+        Assert.Equal(outcome, result.Outcome);
+        Assert.Equal(expectedCode, result.ErrorCode);
     }
 
     [Fact]

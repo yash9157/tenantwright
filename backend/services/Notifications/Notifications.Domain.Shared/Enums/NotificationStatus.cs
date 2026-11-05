@@ -8,5 +8,7 @@ public enum NotificationStatus
     Processing = 4,
     NeedsReview = 5,
     DeadLettered = 6,
-    Delivered = 7
+    Delivered = 7,
+    Cancelled = 8,
+    Expired = 9
 }

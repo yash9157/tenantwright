@@ -10,6 +10,7 @@ public interface INotificationRateLimiter
     /// No-op when rate limiting is disabled.
     /// </summary>
     Task EnsureWithinLimitAsync(
+        Guid operationId,
         Guid? tenantId,
         NotificationChannel channel,
         int messageCount,

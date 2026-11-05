@@ -18,6 +18,9 @@ using Shared.Uow.Options;
 using Shared.BackgroundTasks.Workers;
 using System.Diagnostics.Metrics;
 using System.Text.Json;
+using Notifications.Application.Dispatches;
+using Notifications.EntityFrameworkCore.EntityFrameworkCore;
+using Shared.EntityFrameworkCore.Repositories;
 
 namespace Notifications.Application.Delivery;
 
@@ -81,7 +84,7 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
     }
 
     public Task<NotificationScheduleResult> ScheduleAsync(
-        NotificationSendRequestedTenantEto input,
+        NotificationChannelRequestTenant input,
         CancellationToken cancellationToken = default)
     {
         EnsureTenantContract(input.TenantId);
@@ -93,7 +96,7 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
     }
 
     public Task<NotificationScheduleResult> ScheduleAsync(
-        NotificationSendRequestedHostEto input,
+        NotificationChannelRequestHost input,
         CancellationToken cancellationToken = default)
         => ScheduleInternalAsync(
             NotificationScheduleCommand.From(input),
@@ -102,7 +105,7 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
             cancellationToken);
 
     public Task<NotificationScheduleResult> ScheduleAtAsync(
-        NotificationSendRequestedTenantEto input,
+        NotificationChannelRequestTenant input,
         DateTime notBeforeUtc,
         CancellationToken cancellationToken = default)
     {
@@ -115,7 +118,7 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
     }
 
     public Task<NotificationScheduleResult> ScheduleAtAsync(
-        NotificationSendRequestedHostEto input,
+        NotificationChannelRequestHost input,
         DateTime notBeforeUtc,
         CancellationToken cancellationToken = default)
         => ScheduleInternalAsync(
@@ -150,6 +153,15 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
         var requestId = input.RequestId == Guid.Empty
             ? Guid.CreateVersion7()
             : input.RequestId;
+        var committed = await FindExistingNotificationAsync(tenantId, requestId, cancellationToken);
+        if (committed is not null)
+            return new NotificationScheduleResult
+            {
+                Accepted = true,
+                IsDuplicate = true,
+                RequestId = requestId,
+                NotificationId = committed.Id
+            };
         var channel = MapChannel(input.Channel, _channelsOptions);
         var templateName = input.TemplateName?.Trim();
         if (string.IsNullOrWhiteSpace(templateName))
@@ -280,7 +292,8 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
 
         // Per-tenant / per-channel quota enforced before any write. On exceed this throws a typed
         // exception (recorded as a metric) rather than silently dropping the request.
-        await _rateLimiter.EnsureWithinLimitAsync(tenantId, channel, recipients.Count, cancellationToken);
+        if (!input.DigestBucketId.HasValue)
+            await _rateLimiter.EnsureWithinLimitAsync(requestId, tenantId, channel, recipients.Count, cancellationToken);
 
         try
         {
@@ -311,6 +324,26 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
                 };
             }
 
+            if (input.DispatchStepId.HasValue)
+            {
+                if (!input.SchedulingClaimId.HasValue || _notificationRepository is not IEfCoreRepository<Notification> repository ||
+                    await repository.GetDbContextAsync() is not NotificationsDbContextApp context)
+                    throw NotificationDispatchGate.Conflict();
+                await NotificationDispatchGate.LinkAsync(context, notification, input.DispatchStepId.Value,
+                    input.SchedulingClaimId.Value, DateTime.UtcNow, cancellationToken);
+            }
+            if (input.DigestBucketId.HasValue)
+            {
+                if (_notificationRepository is not IEfCoreRepository<Notification> digestRepository ||
+                    await digestRepository.GetDbContextAsync() is not NotificationsDbContextApp digestContext)
+                    throw NotificationDispatchGate.Conflict();
+                if (!await NotificationDispatchGate.LinkDigestAsync(digestContext, notification, input.DigestBucketId.Value,
+                        recipients, DateTime.UtcNow, cancellationToken))
+                {
+                    await uow.CompleteAsync(cancellationToken);
+                    return new NotificationScheduleResult { Accepted = true, RequiresReview = true, RequestId = requestId };
+                }
+            }
             await _notificationRepository.InsertAsync(notification, autoSave: false, cancellationToken);
             await _recipientRepository.InsertManyAsync(recipients, autoSave: true, cancellationToken);
 
@@ -572,6 +605,9 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
     private sealed class NotificationScheduleCommand
     {
         public Guid RequestId { get; init; }
+        public Guid? DispatchStepId { get; init; }
+        public Guid? SchedulingClaimId { get; init; }
+        public Guid? DigestBucketId { get; init; }
         public NotificationSendChannel Channel { get; init; }
         public string? Subject { get; init; }
         public string TemplateName { get; init; } = string.Empty;
@@ -585,12 +621,15 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
         public Guid? PreferenceUserId { get; init; }
         public string? PreferenceKey { get; init; }
 
-        public static NotificationScheduleCommand From(NotificationSendRequestedTenantEto input)
+        public static NotificationScheduleCommand From(NotificationChannelRequestTenant input)
         {
             ArgumentNullException.ThrowIfNull(input);
             return new NotificationScheduleCommand
             {
                 RequestId = input.RequestId,
+                DispatchStepId = input.DispatchStepId,
+                SchedulingClaimId = input.SchedulingClaimId,
+                DigestBucketId = input.DigestBucketId,
                 Channel = input.Channel,
                 Subject = input.Subject,
                 TemplateName = input.TemplateName,
@@ -606,12 +645,15 @@ public sealed class NotificationDeliveryScheduler : INotificationDeliverySchedul
             };
         }
 
-        public static NotificationScheduleCommand From(NotificationSendRequestedHostEto input)
+        public static NotificationScheduleCommand From(NotificationChannelRequestHost input)
         {
             ArgumentNullException.ThrowIfNull(input);
             return new NotificationScheduleCommand
             {
                 RequestId = input.RequestId,
+                DispatchStepId = input.DispatchStepId,
+                SchedulingClaimId = input.SchedulingClaimId,
+                DigestBucketId = input.DigestBucketId,
                 Channel = input.Channel,
                 Subject = input.Subject,
                 TemplateName = input.TemplateName,

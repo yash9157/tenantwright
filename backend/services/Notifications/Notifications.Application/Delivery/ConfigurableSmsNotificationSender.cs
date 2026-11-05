@@ -1,3 +1,4 @@
+using Notifications.Application.Contracts.Delivery;
 using Microsoft.Extensions.Options;
 using Notifications.Application.Contracts.Channels;
 using Notifications.Application.Contracts.ProviderConfig;
@@ -26,7 +27,7 @@ public sealed class ConfigurableSmsNotificationSender : ISmsNotificationSender, 
         _adapters = adapters;
     }
 
-    public async Task<SmsSendOutcome> SendAsync(
+    public async Task<NotificationProviderSendResult> SendAsync(
         string phoneNumber,
         string message,
         CancellationToken cancellationToken = default)
@@ -36,35 +37,35 @@ public sealed class ConfigurableSmsNotificationSender : ISmsNotificationSender, 
         switch (mode)
         {
             case NotificationProviderMode.MockSuccess:
-                return new SmsSendOutcome { ProviderMessageId = $"mock-sms-{Guid.CreateVersion7():N}" };
+                return NotificationProviderSendResult.Success($"mock-sms-{Guid.CreateVersion7():N}");
 
             case NotificationProviderMode.Live:
                 return await SendLiveAsync(phoneNumber, message, cancellationToken);
 
             default:
-                throw new InvalidOperationException(
+                throw new NotificationChannelUnavailableException("provider_configuration_unavailable",
                     "Sms provider is disabled. Set Notifications:Providers:Sms=MockSuccess|Live or configure a real provider.");
         }
     }
 
-    private async Task<SmsSendOutcome> SendLiveAsync(string phoneNumber, string message, CancellationToken cancellationToken)
+    private async Task<NotificationProviderSendResult> SendLiveAsync(string phoneNumber, string message, CancellationToken cancellationToken)
     {
         var resolved = await _resolver.ResolveAsync(_currentTenant.Id, NotificationChannel.Sms, cancellationToken)
-            ?? throw new InvalidOperationException(
+            ?? throw new NotificationChannelUnavailableException("provider_configuration_unavailable",
                 "No active SMS provider configuration is available. Configure a Super Admin default or tenant override.");
 
         var adapter = _adapters.FirstOrDefault(
             x => string.Equals(x.ProviderName, resolved.ProviderType, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException(
+            ?? throw new NotificationChannelUnavailableException("provider_configuration_unavailable",
                 $"No SMS provider adapter is registered for provider '{resolved.ProviderType}'.");
 
         var result = await adapter.SendAsync(phoneNumber, message, resolved, cancellationToken);
         if (!result.IsSuccess)
         {
             // Surface the failure so the delivery worker records it and applies retry/dead-letter policy.
-            throw new InvalidOperationException(result.ErrorCode ?? "sms_provider_failed");
+            return result.WithConfiguration(resolved.ConfigId);
         }
 
-        return new SmsSendOutcome { ProviderMessageId = result.ProviderMessageId, ProviderConfigId = resolved.ConfigId };
+        return result.WithConfiguration(resolved.ConfigId);
     }
 }

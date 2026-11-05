@@ -1,3 +1,4 @@
+using Identity.Application.Account;
 using Identity.EntityFrameworkCore.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Shared.EntityFrameworkCore;
@@ -49,23 +50,29 @@ public sealed class TenantClosureChangedEventHandler
             {
                 RequestId = eventData.RequestId,
                 TenantId = eventData.TenantId,
-                Channel = NotificationSendChannel.Email,
-                Subject = eventData.IsClosed ? "Tenant closed" : "Tenant restored",
-                TemplateName = eventData.IsClosed ? "Tenant.Closure" : "Tenant.Restored",
-                TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
+                OccurredAtUtc = eventData.OccurredAtUtc,
+                SourceService = "tenant-closure",
+                DeliveryPlan = new NotificationDeliveryPlan
+                {
+                    Mode = NotificationDeliveryMode.Parallel,
+                    Steps = [new NotificationChannelPlan
+                        {
+                            Channel = NotificationSendChannel.Email,
+                            Subject = eventData.IsClosed ? "Tenant closed" : "Tenant restored",
+                            TemplateName = eventData.IsClosed ? "Tenant.Closure" : "Tenant.Restored",
+                            TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     ["reasonCode"] = eventData.ReasonCode
+                }
+                        }]
                 },
-                Recipients =
-                [
+                Recipients = IdentityNotificationContractPublisher.CreateSingleChannelRecipients(NotificationSendChannel.Email, [
                     new NotificationRecipientEto
                     {
                         RecipientType = NotificationSendRecipientType.EmailAddress,
                         RecipientValue = email
                     }
-                ],
-                OccurredAtUtc = eventData.OccurredAtUtc,
-                SourceService = "tenant-closure"
+                ], null),
             },
             cancellationToken: cancellationToken);
     }

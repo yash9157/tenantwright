@@ -16,7 +16,7 @@ public sealed class AppChannelDeliveryHandler : IChannelDeliveryHandler, ITransi
     {
         if (context.RecipientType != NotificationRecipientType.UserId)
         {
-            return Task.FromResult(ChannelDeliveryResult.Failed("invalid_app_recipient_type"));
+            return Task.FromResult(ChannelDeliveryResult.PermanentRejection("invalid_app_recipient_type"));
         }
 
         return Task.FromResult(ChannelDeliveryResult.Success(userId: context.RecipientValue));

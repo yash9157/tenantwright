@@ -16,7 +16,7 @@ public class NotificationRateLimiterTests
         var limiter = Build(new NotificationsRateLimitOptions { Enabled = false, PerTenantChannelPerWindow = 1 });
 
         // Well over any limit, but disabled -> no-op.
-        await limiter.EnsureWithinLimitAsync(Tenant, NotificationChannel.Email, 1000);
+        await limiter.EnsureWithinLimitAsync(Guid.NewGuid(), Tenant, NotificationChannel.Email, 1000);
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class NotificationRateLimiterTests
             GlobalPerWindow = 0
         });
 
-        await limiter.EnsureWithinLimitAsync(Tenant, NotificationChannel.Email, 5);
+        await limiter.EnsureWithinLimitAsync(Guid.NewGuid(), Tenant, NotificationChannel.Email, 5);
     }
 
     [Fact]
@@ -42,10 +42,10 @@ public class NotificationRateLimiterTests
             GlobalPerWindow = 0
         });
 
-        await limiter.EnsureWithinLimitAsync(Tenant, NotificationChannel.Email, 5);
+        await limiter.EnsureWithinLimitAsync(Guid.NewGuid(), Tenant, NotificationChannel.Email, 5);
 
         var ex = await Assert.ThrowsAsync<NotificationRateLimitExceededException>(
-            () => limiter.EnsureWithinLimitAsync(Tenant, NotificationChannel.Email, 1));
+            () => limiter.EnsureWithinLimitAsync(Guid.NewGuid(), Tenant, NotificationChannel.Email, 1));
         Assert.Equal("tenant", ex.Scope);
         Assert.Equal(NotificationChannel.Email, ex.Channel);
         Assert.Equal(5, ex.Limit);
@@ -64,9 +64,9 @@ public class NotificationRateLimiterTests
         });
 
         // Sms override (1) + burst (2) = 3 allowed.
-        await limiter.EnsureWithinLimitAsync(Tenant, NotificationChannel.Sms, 3);
+        await limiter.EnsureWithinLimitAsync(Guid.NewGuid(), Tenant, NotificationChannel.Sms, 3);
         await Assert.ThrowsAsync<NotificationRateLimitExceededException>(
-            () => limiter.EnsureWithinLimitAsync(Tenant, NotificationChannel.Sms, 1));
+            () => limiter.EnsureWithinLimitAsync(Guid.NewGuid(), Tenant, NotificationChannel.Sms, 1));
     }
 
     [Fact]
@@ -80,10 +80,10 @@ public class NotificationRateLimiterTests
             GlobalPerWindow = 0
         });
 
-        await limiter.EnsureWithinLimitAsync(Tenant, NotificationChannel.Email, 2);
+        await limiter.EnsureWithinLimitAsync(Guid.NewGuid(), Tenant, NotificationChannel.Email, 2);
         // Different channel and different tenant have their own budgets.
-        await limiter.EnsureWithinLimitAsync(Tenant, NotificationChannel.Sms, 2);
-        await limiter.EnsureWithinLimitAsync(other, NotificationChannel.Email, 2);
+        await limiter.EnsureWithinLimitAsync(Guid.NewGuid(), Tenant, NotificationChannel.Sms, 2);
+        await limiter.EnsureWithinLimitAsync(Guid.NewGuid(), other, NotificationChannel.Email, 2);
     }
 
     [Fact]
@@ -98,10 +98,10 @@ public class NotificationRateLimiterTests
 
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
-        await limiter.EnsureWithinLimitAsync(a, NotificationChannel.Email, 2);
+        await limiter.EnsureWithinLimitAsync(Guid.NewGuid(), a, NotificationChannel.Email, 2);
 
         var ex = await Assert.ThrowsAsync<NotificationRateLimitExceededException>(
-            () => limiter.EnsureWithinLimitAsync(b, NotificationChannel.Email, 2));
+            () => limiter.EnsureWithinLimitAsync(Guid.NewGuid(), b, NotificationChannel.Email, 2));
         Assert.Equal("global", ex.Scope);
         Assert.Equal(3, ex.Limit);
     }
@@ -115,12 +115,21 @@ public class NotificationRateLimiterTests
     {
         private readonly Dictionary<string, long> _counts = new(StringComparer.Ordinal);
 
-        public Task<long> IncrementAndGetAsync(string key, TimeSpan window, int amount, CancellationToken cancellationToken = default)
+        public Task<NotificationQuotaReservation> ReserveAsync(NotificationQuotaRequest request, CancellationToken cancellationToken = default)
         {
-            _counts.TryGetValue(key, out var current);
-            current += amount;
-            _counts[key] = current;
-            return Task.FromResult(current);
+            var key = $"{request.TenantId}:{request.Channel}";
+            _counts.TryGetValue(key, out var tenantCount);
+            _counts.TryGetValue("global", out var globalCount);
+            var decision = request.TenantLimit > 0 && tenantCount + request.Amount > request.TenantLimit
+                ? NotificationQuotaDecision.TenantDenied
+                : request.GlobalLimit > 0 && globalCount + request.Amount > request.GlobalLimit
+                    ? NotificationQuotaDecision.GlobalDenied : NotificationQuotaDecision.Granted;
+            if (decision == NotificationQuotaDecision.Granted)
+            {
+                _counts[key] = tenantCount + request.Amount;
+                _counts["global"] = globalCount + request.Amount;
+            }
+            return Task.FromResult(new NotificationQuotaReservation(decision, tenantCount, globalCount, DateTime.UtcNow.AddMinutes(1)));
         }
     }
 

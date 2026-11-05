@@ -1,3 +1,4 @@
+using Notifications.Domain.Shared.Enums;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -32,27 +33,28 @@ public sealed class MetaWhatsAppCloudProviderAdapter : IWhatsAppProviderAdapter,
 
     public string ProviderName => "MetaWhatsAppCloud";
 
-    public async Task<WhatsAppProviderSendResult> SendAsync(
+    public async Task<NotificationProviderSendResult> SendAsync(
         string toPhoneNumber,
         string templateName,
         string bodyText,
         ResolvedNotificationProviderConfig config,
         CancellationToken cancellationToken = default)
     {
+        using var sendActivity = NotificationProviderTrace.Start(NotificationChannel.WhatsApp);
         var settings = JsonSerializer.Deserialize<MetaWhatsAppCloudSettings>(config.SettingsJson, JsonOptions)
             ?? new MetaWhatsAppCloudSettings();
         var secrets = DeserializeSecrets(config.Secret);
 
         if (string.IsNullOrWhiteSpace(settings.PhoneNumberId) || string.IsNullOrWhiteSpace(secrets.AccessToken))
         {
-            throw new InvalidOperationException(
+            throw new global::Notifications.Application.Contracts.Delivery.NotificationChannelUnavailableException("provider_configuration_unavailable",
                 $"Meta WhatsApp Cloud configuration '{config.ConfigId}' is missing PhoneNumberId or AccessToken.");
         }
 
         if (!settings.ApprovedTemplateNames.Contains(templateName, StringComparer.OrdinalIgnoreCase))
         {
             // Fail safe: never fall back to a free-form message for an unapproved template.
-            return WhatsAppProviderSendResult.Failed("whatsapp_template_not_approved");
+            return NotificationProviderSendResult.PermanentRejection("whatsapp_template_not_approved");
         }
 
         var client = _httpClientFactory.CreateClient(HttpClientName);
@@ -82,23 +84,23 @@ public sealed class MetaWhatsAppCloudProviderAdapter : IWhatsAppProviderAdapter,
         };
         request.Content = JsonContent.Create(payload, options: JsonOptions);
 
-        using var response = await client.SendAsync(request, cancellationToken);
-        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        var responseBody = await NotificationHttpResponseOutcome.ReadBodyAsync(response.Content, cancellationToken);
+        if (responseBody is null)
+            return NotificationProviderSendResult.Ambiguous("provider_response_too_large");
 
         if (response.IsSuccessStatusCode)
         {
             var messageId = TryReadMessageId(responseBody);
-            return WhatsAppProviderSendResult.Success(messageId);
+            return string.IsNullOrWhiteSpace(messageId) ? NotificationProviderSendResult.Ambiguous("whatsapp_acceptance_id_missing") : NotificationProviderSendResult.Success(messageId);
         }
 
         var errorCode = TryReadErrorCode(responseBody) ?? ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        // Meta's error body can echo the recipient number but never the access token; log only the
-        // vendor error code and HTTP status.
         _logger.LogWarning(
             "Meta WhatsApp send failed. HttpStatus={HttpStatus}, MetaCode={MetaCode}.",
             (int)response.StatusCode,
             errorCode);
-        return WhatsAppProviderSendResult.Failed($"whatsapp_{errorCode}");
+        return NotificationHttpResponseOutcome.Rejection(response, $"whatsapp_{errorCode}");
     }
 
     private static MetaWhatsAppCloudSecrets DeserializeSecrets(string? secretJson)
@@ -129,10 +131,12 @@ public sealed class MetaWhatsAppCloudProviderAdapter : IWhatsAppProviderAdapter,
         try
         {
             using var document = JsonDocument.Parse(json);
-            if (document.RootElement.TryGetProperty("messages", out var messages) &&
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("messages", out var messages) &&
                 messages.ValueKind == JsonValueKind.Array &&
                 messages.GetArrayLength() > 0 &&
-                messages[0].TryGetProperty("id", out var id))
+                messages[0].ValueKind == JsonValueKind.Object &&
+                messages[0].TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String)
             {
                 return id.GetString();
             }
@@ -155,12 +159,17 @@ public sealed class MetaWhatsAppCloudProviderAdapter : IWhatsAppProviderAdapter,
         try
         {
             using var document = JsonDocument.Parse(json);
-            if (document.RootElement.TryGetProperty("error", out var error))
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("error", out var error) &&
+                error.ValueKind == JsonValueKind.Object && error.TryGetProperty("code", out var code))
             {
-                if (error.TryGetProperty("code", out var code))
+                var value = code.ValueKind switch
                 {
-                    return code.ValueKind == JsonValueKind.String ? code.GetString() : code.ToString();
-                }
+                    JsonValueKind.String => code.GetString(),
+                    JsonValueKind.Number => code.GetRawText(),
+                    _ => null
+                };
+                return NotificationHttpResponseOutcome.NumericProviderCode(value);
             }
         }
         catch (JsonException)

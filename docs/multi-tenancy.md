@@ -124,3 +124,19 @@ Stored `TargetFingerprint` values are derived from the decrypted connection stri
 - **Shared database failure:** rethrown after the dedicated databases have run.
 
 Users include the outbox dispatcher and inbox retention, AuditLogs sealing and queries, Notifications delivery and retention, and the Permissions cache refresh and seeding. Cross-database paged queries are capped at a 10,000-row window.
+
+## Notification dispatch scope
+
+Dispatches, recipients, steps and routing events are stored in the owning
+Notifications database and implement `IMultiTenant`. A checked `ScopeId` equals
+`TenantId`, with the empty UUID reserved for null host scope. Scope-qualified
+foreign keys protect parent/recipient/step linkage, including host rows. The
+scope/request unique index prevents nullable host IDs from bypassing deduplication.
+A channel notification can link only one step in its own scope.
+
+Coordination uses the existing per-database fan-out and ownership predicates.
+Tenant API callers cannot select another tenant. Host lists default to host
+intent; an explicit tenant selects its owning database. Host UUID lookups locate
+the owning database and reject ambiguous ownership. Current-tenant routes require
+an active tenant and never fall back to host data. Quota reservations isolate
+scope/channel counts while applying the intentional shared global cap.

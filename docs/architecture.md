@@ -93,3 +93,47 @@ Service-to-service HTTP calls use client-credentials tokens (for example, `auth-
 - **Messaging.** Commands and events go through a transactional outbox and are consumed through an inbox. See [Messaging](messaging.md).
 - **Workers.** Periodic workers (`AddSharedPeriodicWorker`) hold a distributed-lock lease, so only one replica runs each worker. Workers that touch tenant-dedicatable data iterate every database through `TenantDatabaseFanOut`; see [Multi-tenancy](multi-tenancy.md).
 - **Workflows.** Temporal is used by Workflows. Its worker only polls when `Temporal:Enabled` and `Temporal:WorkerEnabled` are both true.
+
+## Notification dispatches
+
+Notifications owns explicit parallel and ordered fallback plans. A signed request
+is admitted in the inbox transaction as `NotificationDispatch`, keyed recipients,
+ordered channel steps and revisioned routing history. Each step has one stable
+child request ID. Existing `Notification` and delivery rows own actual sends.
+No workflow service or additional message transport coordinates routing.
+
+```mermaid
+flowchart LR
+  P[Trusted producer] --> I[Signed inbox and dispatch admission]
+  I --> C[Coordinator in owning Notifications database]
+  C --> G[Revision and scheduling claim gate]
+  G --> N[Existing channel scheduler]
+  N --> S[Revision and send claim gate]
+  S --> V[Existing provider or App inbox]
+  V --> E[Delivery evidence and verified receipts]
+  E --> C
+  C --> R[Review when outcome is uncertain]
+```
+
+Fallback advances independently per recipient after definitive rejection or a
+permitted channel exclusion. Acceptance holds routing without asserting delivery;
+quiet hours and digest policies defer it. Unknown sends require review. A later
+verified failure after acceptance can resume fallback before expiry; contradictory
+evidence after confirmed delivery requires review.
+
+Scheduling, send claims, cancellation and recovery fence the same dispatch
+revision. Preparation and provider I/O run outside these transactions. Preparation
+claims last 60 seconds, preparation/provider waits are bounded to 30 seconds, and
+both coordinator and send batches stop admitting further work after 30 seconds.
+The existing worker and tenant database fan-out own execution. Readiness reports
+failed reconciliation or more than five minutes without a successful cycle.
+
+Shared digests link their emitted child in the child's transaction. A digest with
+stopped and active source intents, or more than 1000 sources, requires review.
+It cannot send cancelled content or silently bypass digest policy. Existing live
+WhatsApp consent restrictions and disabled group-audience expansion remain in force.
+
+Completed dispatch history is archived in bounded batches to
+`ArchivedNotificationDispatches`. Recipient keys, content, destinations and actor
+identities are withheld from that archive; channel archives retain their existing
+ownership. Dispatches with unresolved/review work and held digests are protected.

@@ -102,25 +102,31 @@ public partial class AccountAppService
         {
             RequestId = Guid.CreateVersion7(),
             TenantId = input.TenantId,
-            Channel = NotificationSendChannel.Email,
-            Subject = "Reset your password",
-            TemplateName = options.TemplateName,
-            TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
+            OccurredAtUtc = DateTime.UtcNow,
+            SourceService = "identity-service",
+            DeliveryPlan = new NotificationDeliveryPlan
+            {
+                Mode = NotificationDeliveryMode.Parallel,
+                Steps = [new NotificationChannelPlan
+                    {
+                        Channel = NotificationSendChannel.Email,
+                        Subject = "Reset your password",
+                        TemplateName = options.TemplateName,
+                        TemplateModel = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 ["link"] = link,
                 ["userId"] = user.Id.ToString("D"),
                 ["userName"] = user.UserName
+            }
+                    }]
             },
-            Recipients =
-            [
+            Recipients = IdentityNotificationContractPublisher.CreateSingleChannelRecipients(NotificationSendChannel.Email, [
                 new NotificationRecipientEto
                 {
                     RecipientType = NotificationSendRecipientType.EmailAddress,
                     RecipientValue = user.Email
                 }
-            ],
-            OccurredAtUtc = DateTime.UtcNow,
-            SourceService = "identity-service"
+            ], null),
         };
 
         var eventBus = _eventBus ?? throw new InvalidOperationException("TenantWright message sender is required to publish password reset notifications.");

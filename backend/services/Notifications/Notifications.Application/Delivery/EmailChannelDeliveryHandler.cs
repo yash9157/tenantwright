@@ -30,7 +30,7 @@ public sealed class EmailChannelDeliveryHandler : IChannelDeliveryHandler, ITran
     {
         if (context.RecipientType != NotificationRecipientType.EmailAddress)
         {
-            return ChannelDeliveryResult.Failed("invalid_email_recipient_type");
+            return ChannelDeliveryResult.PermanentRejection("invalid_email_recipient_type");
         }
 
         var model = context.TemplateModel.ToDictionary(
@@ -44,12 +44,12 @@ public sealed class EmailChannelDeliveryHandler : IChannelDeliveryHandler, ITran
             model,
             cancellationToken);
 
-        var providerMessageId = await _emailSender.SendAsync(
+        var result = await _emailSender.SendAsync(
             context.RecipientValue,
             context.Subject?.Trim() ?? rendered.Subject ?? string.Empty,
             rendered.Content,
             cancellationToken);
 
-        return ChannelDeliveryResult.Success(providerMessageId: providerMessageId);
+        return ChannelDeliveryResult.FromProvider(result);
     }
 }

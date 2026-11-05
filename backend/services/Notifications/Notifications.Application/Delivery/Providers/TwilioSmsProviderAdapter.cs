@@ -1,3 +1,4 @@
+using Notifications.Domain.Shared.Enums;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -31,12 +32,13 @@ public sealed class TwilioSmsProviderAdapter : ISmsProviderAdapter, ITransientDe
 
     public string ProviderName => "Twilio";
 
-    public async Task<SmsProviderSendResult> SendAsync(
+    public async Task<NotificationProviderSendResult> SendAsync(
         string toPhoneNumber,
         string message,
         ResolvedNotificationProviderConfig config,
         CancellationToken cancellationToken = default)
     {
+        using var sendActivity = NotificationProviderTrace.Start(NotificationChannel.Sms);
         var settings = JsonSerializer.Deserialize<TwilioSmsSettings>(config.SettingsJson, JsonOptions) ?? new TwilioSmsSettings();
         var authToken = config.Secret;
 
@@ -44,7 +46,7 @@ public sealed class TwilioSmsProviderAdapter : ISmsProviderAdapter, ITransientDe
             string.IsNullOrWhiteSpace(authToken) ||
             string.IsNullOrWhiteSpace(settings.FromNumber))
         {
-            throw new InvalidOperationException(
+            throw new global::Notifications.Application.Contracts.Delivery.NotificationChannelUnavailableException("provider_configuration_unavailable",
                 $"Twilio SMS provider configuration '{config.ConfigId}' is missing AccountSid, AuthToken, or FromNumber.");
         }
 
@@ -62,26 +64,27 @@ public sealed class TwilioSmsProviderAdapter : ISmsProviderAdapter, ITransientDe
             ["Body"] = message
         });
 
-        using var response = await client.SendAsync(request, cancellationToken);
-        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        var payload = await NotificationHttpResponseOutcome.ReadBodyAsync(response.Content, cancellationToken);
+        if (payload is null)
+            return NotificationProviderSendResult.Ambiguous("provider_response_too_large");
 
         if (response.IsSuccessStatusCode)
         {
-            var sid = TryReadString(payload, "sid");
-            return SmsProviderSendResult.Success(sid);
+            var sid = TryReadValue(payload, "sid", allowNumber: false);
+            return string.IsNullOrWhiteSpace(sid) ? NotificationProviderSendResult.Ambiguous("twilio_acceptance_id_missing") : NotificationProviderSendResult.Success(sid);
         }
 
-        var errorCode = TryReadString(payload, "code") ?? ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        // Twilio's error "message" may contain the recipient number but never the auth token; still,
-        // log only the vendor error code and HTTP status, not the request or credentials.
+        var errorCode = NotificationHttpResponseOutcome.NumericProviderCode(TryReadValue(payload, "code", allowNumber: true))
+            ?? ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture);
         _logger.LogWarning(
             "Twilio SMS send failed. HttpStatus={HttpStatus}, TwilioCode={TwilioCode}.",
             (int)response.StatusCode,
             errorCode);
-        return SmsProviderSendResult.Failed($"twilio_{errorCode}");
+        return NotificationHttpResponseOutcome.Rejection(response, $"twilio_{errorCode}");
     }
 
-    private static string? TryReadString(string json, string property)
+    private static string? TryReadValue(string json, string property, bool allowNumber)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -94,9 +97,12 @@ public sealed class TwilioSmsProviderAdapter : ISmsProviderAdapter, ITransientDe
             if (document.RootElement.ValueKind == JsonValueKind.Object &&
                 document.RootElement.TryGetProperty(property, out var value))
             {
-                return value.ValueKind == JsonValueKind.String
-                    ? value.GetString()
-                    : value.ToString();
+                return value.ValueKind switch
+                {
+                    JsonValueKind.String => value.GetString(),
+                    JsonValueKind.Number when allowNumber => value.GetRawText(),
+                    _ => null
+                };
             }
         }
         catch (JsonException)

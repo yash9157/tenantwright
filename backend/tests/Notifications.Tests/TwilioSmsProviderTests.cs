@@ -36,17 +36,20 @@ public class TwilioSmsProviderTests
         Assert.Equal("SM123", result.ProviderMessageId);
     }
 
-    [Fact]
-    public async Task Adapter_maps_failure_to_error_code()
+    [Theory]
+    [InlineData("{\"code\":21211,\"message\":\"Invalid 'To'\"}", "twilio_21211")]
+    [InlineData("{\"code\":{\"recipient\":\"private-recipient\"}}", "twilio_400")]
+    [InlineData("{\"code\":\"private-recipient\"}", "twilio_400")]
+    public async Task Adapter_exposes_only_numeric_provider_error_codes(string body, string expectedCode)
     {
-        var handler = new StubHandler(HttpStatusCode.BadRequest, "{\"code\":21211,\"message\":\"Invalid 'To'\"}");
+        var handler = new StubHandler(HttpStatusCode.BadRequest, body);
         var adapter = BuildAdapter(handler);
         var config = BuildResolvedConfig(accountSid: "AC1", authToken: "token", fromNumber: "+15550000000");
 
         var result = await adapter.SendAsync("+bad", "hello", config);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("twilio_21211", result.ErrorCode);
+        Assert.Equal(expectedCode, result.ErrorCode);
     }
 
     [Fact]
@@ -56,7 +59,7 @@ public class TwilioSmsProviderTests
         var adapter = BuildAdapter(handler);
         var config = BuildResolvedConfig(accountSid: "", authToken: null, fromNumber: "");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => adapter.SendAsync("+1", "x", config));
+        await Assert.ThrowsAsync<NotificationChannelUnavailableException>(() => adapter.SendAsync("+1", "x", config));
     }
 
     // ---- Sender mode routing ----
@@ -70,7 +73,7 @@ public class TwilioSmsProviderTests
             new NoopResolver(),
             []);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sender.SendAsync("+1", "x"));
+        await Assert.ThrowsAsync<NotificationChannelUnavailableException>(() => sender.SendAsync("+1", "x"));
     }
 
     [Fact]
@@ -91,7 +94,7 @@ public class TwilioSmsProviderTests
     public async Task Sender_live_delegates_to_matching_adapter()
     {
         var configId = Guid.NewGuid();
-        var adapter = new FakeSmsAdapter(SmsProviderSendResult.Success("SM999"));
+        var adapter = new FakeSmsAdapter(NotificationProviderSendResult.Success("SM999"));
         var sender = new ConfigurableSmsNotificationSender(
             Options.Create(new NotificationsChannelProviderModeOptions { Sms = "Live" }),
             new TestCurrentTenant(null),
@@ -106,16 +109,18 @@ public class TwilioSmsProviderTests
     }
 
     [Fact]
-    public async Task Sender_live_throws_on_adapter_failure()
+    public async Task Sender_live_preserves_the_typed_adapter_rejection()
     {
-        var adapter = new FakeSmsAdapter(SmsProviderSendResult.Failed("twilio_21610"));
+        var adapter = new FakeSmsAdapter(NotificationProviderSendResult.PermanentRejection("twilio_21610"));
         var sender = new ConfigurableSmsNotificationSender(
             Options.Create(new NotificationsChannelProviderModeOptions { Sms = "Live" }),
             new TestCurrentTenant(null),
             new StaticResolver(BuildResolvedConfig(accountSid: "AC1", authToken: "token", fromNumber: "+1")),
             [adapter]);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sender.SendAsync("+1", "x"));
+        var result = await sender.SendAsync("+1", "x");
+        Assert.Equal(NotificationSendOutcome.PermanentRejection, result.Outcome);
+        Assert.Equal("twilio_21610", result.ErrorCode);
     }
 
     [Fact]
@@ -127,7 +132,7 @@ public class TwilioSmsProviderTests
             new NoopResolver(),
             []);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sender.SendAsync("+1", "x"));
+        await Assert.ThrowsAsync<NotificationChannelUnavailableException>(() => sender.SendAsync("+1", "x"));
     }
 
     // ---- Signature validation ----
@@ -169,8 +174,10 @@ public class TwilioSmsProviderTests
 
     // ---- Webhook receipt (idempotent, host-context) ----
 
-    [Fact]
-    public async Task Receipt_failure_dead_letters_sent_delivery_and_is_idempotent()
+    [Theory]
+    [InlineData("30008", "provider_reported_failure:30008")]
+    [InlineData("private-recipient", "provider_reported_failure")]
+    public async Task Receipt_failure_dead_letters_sent_delivery_and_is_idempotent(string providerCode, string expectedReason)
     {
         var tenant = Guid.NewGuid();
         using var db = NotificationsEfCoreTestHarness.BuildDbContext(
@@ -178,18 +185,20 @@ public class TwilioSmsProviderTests
         var notificationId = Guid.NewGuid();
         db.Notifications.Add(new Notification(notificationId, tenant, null, NotificationChannel.Sms, "sms-receipt", "{}"));
         var delivery = new NotificationDelivery(1, tenant, notificationId, recipientId: 1);
-        delivery.MarkProviderAccepted(DateTime.UtcNow, "SM-abc");
+        var configId = Guid.NewGuid();
+        delivery.MarkProviderAccepted(DateTime.UtcNow, "SM-abc", configId);
         db.NotificationDeliveries.Add(delivery);
         await db.SaveChangesAsync();
 
         var service = new NotificationDeliveryReceiptService(NotificationsEfCoreTestHarness.AsDbContextProvider(db));
 
-        Assert.True(await service.ApplyProviderStatusAsync("SM-abc", NotificationChannel.Sms, NotificationDeliveryReceiptStatus.Failed, "30008"));
+        Assert.True(await service.ApplyProviderStatusAsync("SM-abc", NotificationChannel.Sms, configId, NotificationDeliveryReceiptStatus.Failed, providerCode));
         var afterFirst = await db.NotificationDeliveries.IgnoreQueryFilters().FirstAsync(x => x.Id == 1);
         Assert.Equal(NotificationStatus.DeadLettered, afterFirst.Status);
+        Assert.Equal(expectedReason, afterFirst.LastError);
 
         // Idempotent: re-applying keeps it dead-lettered.
-        Assert.True(await service.ApplyProviderStatusAsync("SM-abc", NotificationChannel.Sms, NotificationDeliveryReceiptStatus.Failed, "30008"));
+        Assert.True(await service.ApplyProviderStatusAsync("SM-abc", NotificationChannel.Sms, configId, NotificationDeliveryReceiptStatus.Failed, providerCode));
         var afterSecond = await db.NotificationDeliveries.IgnoreQueryFilters().FirstAsync(x => x.Id == 1);
         Assert.Equal(NotificationStatus.DeadLettered, afterSecond.Status);
     }
@@ -203,17 +212,18 @@ public class TwilioSmsProviderTests
         var notificationId = Guid.NewGuid();
         db.Notifications.Add(new Notification(notificationId, tenant, null, NotificationChannel.Sms, "sms-receipt", "{}"));
         var delivery = new NotificationDelivery(1, tenant, notificationId, recipientId: 1);
-        delivery.MarkProviderAccepted(DateTime.UtcNow, "SM-ok");
+        var configId = Guid.NewGuid();
+        delivery.MarkProviderAccepted(DateTime.UtcNow, "SM-ok", configId);
         db.NotificationDeliveries.Add(delivery);
         await db.SaveChangesAsync();
 
         var service = new NotificationDeliveryReceiptService(NotificationsEfCoreTestHarness.AsDbContextProvider(db));
 
-        Assert.True(await service.ApplyProviderStatusAsync("SM-ok", NotificationChannel.Sms, NotificationDeliveryReceiptStatus.Delivered, null));
+        Assert.True(await service.ApplyProviderStatusAsync("SM-ok", NotificationChannel.Sms, configId, NotificationDeliveryReceiptStatus.Delivered, null));
         var reloaded = await db.NotificationDeliveries.IgnoreQueryFilters().FirstAsync(x => x.Id == 1);
         Assert.Equal(NotificationStatus.Delivered, reloaded.Status);
 
-        Assert.False(await service.ApplyProviderStatusAsync("does-not-exist", NotificationChannel.Sms, NotificationDeliveryReceiptStatus.Failed, null));
+        Assert.False(await service.ApplyProviderStatusAsync("does-not-exist", NotificationChannel.Sms, configId, NotificationDeliveryReceiptStatus.Failed, null));
     }
 
     private static TwilioSmsProviderAdapter BuildAdapter(HttpMessageHandler handler)
@@ -260,9 +270,9 @@ public class TwilioSmsProviderTests
 
     private sealed class FakeSmsAdapter : ISmsProviderAdapter
     {
-        private readonly SmsProviderSendResult _result;
+        private readonly NotificationProviderSendResult _result;
 
-        public FakeSmsAdapter(SmsProviderSendResult result, string providerName = "Twilio")
+        public FakeSmsAdapter(NotificationProviderSendResult result, string providerName = "Twilio")
         {
             _result = result;
             ProviderName = providerName;
@@ -271,7 +281,7 @@ public class TwilioSmsProviderTests
         public string ProviderName { get; }
         public int CallCount { get; private set; }
 
-        public Task<SmsProviderSendResult> SendAsync(
+        public Task<NotificationProviderSendResult> SendAsync(
             string toPhoneNumber,
             string message,
             ResolvedNotificationProviderConfig config,

@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Notifications.Application.Contracts.Delivery;
+using Notifications.Application.Contracts.Dispatches;
 using Notifications.Events;
 using Shared.EventContracts;
 using Xunit;
@@ -20,6 +20,7 @@ public sealed class PermissionGrantApprovalNotificationHandlerTests
             NullLogger<PermissionGrantApprovalRequestedEventHandler>.Instance);
         var userId = Guid.NewGuid();
         var tenantId = Guid.NewGuid();
+        using var scope = currentTenant.Change(tenantId);
 
         await handler.HandleAsync(new PermissionGrantApprovalRequestedEto
         {
@@ -35,7 +36,7 @@ public sealed class PermissionGrantApprovalNotificationHandlerTests
 
         var notification = Assert.IsType<NotificationSendRequestedTenantEto>(scheduler.LastInput);
         Assert.Equal(tenantId, notification.TenantId);
-        Assert.Equal(NotificationSendChannel.App, notification.Channel);
+        Assert.Equal(NotificationSendChannel.App, Assert.Single(notification.DeliveryPlan.Steps).Channel);
         Assert.Equal(2, notification.Recipients.Count);
         Assert.Equal("/platform/access/approvals", notification.ActionUrl);
     }
@@ -50,6 +51,7 @@ public sealed class PermissionGrantApprovalNotificationHandlerTests
         var handler = new PermissionGrantApprovalDecidedEventHandler(notificationHandler);
         var requesterId = Guid.NewGuid();
         var tenantId = Guid.NewGuid();
+        using var scope = currentTenant.Change(tenantId);
 
         await handler.HandleAsync(new PermissionGrantApprovalDecidedEto
         {
@@ -66,22 +68,22 @@ public sealed class PermissionGrantApprovalNotificationHandlerTests
 
         var notification = Assert.IsType<NotificationSendRequestedTenantEto>(scheduler.LastInput);
         Assert.Equal(tenantId, notification.TenantId);
-        Assert.Equal(requesterId.ToString("D"), Assert.Single(notification.Recipients).RecipientValue);
+        Assert.Equal(requesterId.ToString("D"), Assert.Single(Assert.Single(notification.Recipients).Destinations).RecipientValue);
     }
 
-    private sealed class CapturingScheduler : INotificationDeliveryScheduler
+    private sealed class CapturingScheduler : INotificationDispatchScheduler
     {
         public object? LastInput { get; private set; }
 
-        public Task<NotificationScheduleResult> ScheduleAsync(
+        public Task<NotificationDispatchAdmissionDto> ScheduleAsync(
             NotificationSendRequestedTenantEto input,
             CancellationToken cancellationToken = default) => CaptureAsync(input);
 
-        public Task<NotificationScheduleResult> ScheduleAsync(
+        public Task<NotificationDispatchAdmissionDto> ScheduleAsync(
             NotificationSendRequestedHostEto input,
             CancellationToken cancellationToken = default) => CaptureAsync(input);
 
-        private Task<NotificationScheduleResult> CaptureAsync(object input)
+        private Task<NotificationDispatchAdmissionDto> CaptureAsync(object input)
         {
             LastInput = input;
             var requestId = input switch
@@ -90,13 +92,7 @@ public sealed class PermissionGrantApprovalNotificationHandlerTests
                 NotificationSendRequestedHostEto host => host.RequestId,
                 _ => throw new InvalidOperationException()
             };
-            return Task.FromResult(new NotificationScheduleResult
-            {
-                Accepted = true,
-                RequestId = requestId,
-                NotificationId = Guid.CreateVersion7(),
-                QueuedCount = 1
-            });
+            return Task.FromResult(new NotificationDispatchAdmissionDto(Guid.CreateVersion7(), requestId, false));
         }
     }
 }
